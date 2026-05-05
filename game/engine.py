@@ -14,13 +14,47 @@ from data.enemies import ENEMY_TEMPLATES
 from data.events_data import get_route_events
 
 
-ROUTE = {
-    "name": "大同 → 太原",
-    "desc": "官道险段，太行山麓，常有山贼出没。",
-    "reward": (40, 80),
-    "time_labels": ["第一日·黄昏", "第二日·午时", "第三日·黎明"],
-    "weathers":    ["晴",         "阴",         "雨"],
+ROUTES = {
+    "datong_taiyuan": {
+        "id": "datong_taiyuan",
+        "name": "大同 → 太原",
+        "desc": "官道险段，太行山麓，常有山贼出没。",
+        "difficulty": "初级",
+        "reward": (40, 80),
+        "time_labels": ["第一日·黄昏", "第二日·午时", "第三日·黎明"],
+        "weathers":    ["晴",           "阴",          "雨"],
+        "mandatory_enemies": ["maozei_toumu", "maozei_xiaodi", "maozei_xiaodi"],
+        "boss_enemy": "mianren_shashi",
+        "req_reputation": 0,
+    },
+    "taiyuan_luoyang": {
+        "id": "taiyuan_luoyang",
+        "name": "太原 → 洛阳",
+        "desc": "穿越中原腹地，武林门派林立，各方势力盘根错节。",
+        "difficulty": "中级",
+        "reward": (80, 150),
+        "time_labels": ["第一日·清晨", "第三日·正午", "第五日·傍晚"],
+        "weathers":    ["晴",           "大风",         "阴"],
+        "mandatory_enemies": ["jianghu_baixia", "wudang_dizi", "lulinjun"],
+        "boss_enemy": "gufu_gaoshou",
+        "req_reputation": 15,
+    },
+    "luoyang_jinling": {
+        "id": "luoyang_jinling",
+        "name": "洛阳 → 金陵",
+        "desc": "南下要道，唐门、锦衣卫皆在此布有暗线，凶险非常。",
+        "difficulty": "高级",
+        "reward": (160, 280),
+        "time_labels": ["第二日·黄昏", "第四日·深夜", "第七日·黎明"],
+        "weathers":    ["阴",           "暴雨",          "雾"],
+        "mandatory_enemies": ["tangmen_cike", "paoshou_bingren", "shaolin_seng"],
+        "boss_enemy": "mianren_shashi",
+        "req_reputation": 40,
+    },
 }
+
+# 兼容旧代码
+ROUTE = ROUTES["datong_taiyuan"]
 
 
 class GameEngine:
@@ -46,6 +80,7 @@ class GameEngine:
 
         # 额外 pending_combat（由事件注入）
         self.pending_combat: list[dict] = []
+        self._pending_breakthrough = False
 
     # ── 输出工具 ─────────────────────────────────────────────
 
@@ -70,6 +105,9 @@ class GameEngine:
             "silver": p.silver,
             "reputation": p.reputation,
             "ma": p.get_current_ma()["name"],
+            "realm": p.realm["name"],
+            "realm_idx": p.realm_idx,
+            "exp_progress": p.exp_progress_str(),
         } if p else None
 
         enemies_data = [
@@ -82,12 +120,15 @@ class GameEngine:
             for e in self.combat_enemies if e.alive
         ] if self.state == "combat" else []
 
+        bt = self._pending_breakthrough
+        self._pending_breakthrough = False
         return {
             "state": self.state,
             "output": self.flush(),
             "choices": self.choices,
             "player": player_data,
             "enemies": enemies_data,
+            "breakthrough": bt,
         }
 
     # ── 主入口 ───────────────────────────────────────────────
@@ -157,6 +198,7 @@ class GameEngine:
     def _goto_job_board(self):
         self.state = "job_board"
         p = self.player
+        game_player = p
         rep_label = self._rep_label(p.reputation)
         self.divider("大同府·聚义镖局")
         self.push(
@@ -166,15 +208,26 @@ class GameEngine:
             "",
             f"【银两 {p.silver} 两 · 声望 {p.reputation}（{rep_label}）· {p.get_current_ma()['name']}】",
         )
-        self.choices = [
-            {
-                "id": "accept",
-                "text": "大同 → 太原",
-                "sub":  "五百里官道，风险：中  报酬：40~80两",
-                "type": "mission",
-            },
-            {"id": "quit", "text": "离开游戏", "type": "danger"},
-        ]
+        choices = []
+        for rid, r in ROUTES.items():
+            locked = game_player.reputation < r["req_reputation"]
+            if locked:
+                choices.append({
+                    "id": rid,
+                    "text": f"{r['name']}  【{r['difficulty']}】",
+                    "sub":  f"需要声望 {r['req_reputation']}（当前 {game_player.reputation}）— 未解锁",
+                    "type": "disabled",
+                })
+            else:
+                lo, hi = r["reward"]
+                choices.append({
+                    "id": rid,
+                    "text": f"{r['name']}  【{r['difficulty']}】",
+                    "sub":  f"{r['desc']}  报酬：{lo}~{hi}两",
+                    "type": "mission",
+                })
+        choices.append({"id": "quit", "text": "离开游戏", "type": "danger"})
+        self.choices = choices
 
     # ── 英雄榜 → 出发 ────────────────────────────────────────
 
@@ -184,11 +237,19 @@ class GameEngine:
             self.choices = []
             self.push("江湖路远，后会有期。")
             return
-        # accept mission
+        if cid not in ROUTES:
+            return
+        route = ROUTES[cid]
+        if self.player.reputation < route["req_reputation"]:
+            self.push("声望不足，此镖暂不接受。")
+            self._goto_job_board()
+            return
+        self._current_route = route
+        dest = route["name"].split("→")[1].strip()
         self.push(
             "",
-            "你在镖局领了镖单，踏上前往太原的官道。",
-            "此去五百里，山路迂回，",
+            f"你在镖局领了镖单，踏上前往{dest}的路。",
+            f"此行难度【{route['difficulty']}】，",
             "听老镖师说，近来这段路不太平……",
         )
         self._events = get_route_events(self)
@@ -216,8 +277,9 @@ class GameEngine:
     def _start_event(self, event: dict):
         self.state = "event"
         idx = self._event_idx  # 已+1，所以-1拿原值
-        label = ROUTE["time_labels"][min(idx, len(ROUTE["time_labels"]) - 1)]
-        weather = ROUTE["weathers"][min(idx, len(ROUTE["weathers"]) - 1)]
+        r = getattr(self, "_current_route", ROUTE)
+        label = r["time_labels"][min(idx, len(r["time_labels"]) - 1)]
+        weather = r["weathers"][min(idx, len(r["weathers"]) - 1)]
         self._current_event = event
         self.divider(f"{label} · {weather}")
         for ln in event["narrative"]:
@@ -427,7 +489,7 @@ class GameEngine:
                         self.push(ln.replace("{target}", target.name))
                 else:
                     dmg, hit, crit = resolve_attack(
-                        p.attack, tech, target,
+                        p.effective_attack(), tech, target,
                         insight_bonus=p.martial_insight > 0
                     )
                     if hit:
@@ -473,7 +535,7 @@ class GameEngine:
         for m in all_status:
             self.push(m)
 
-        # 死亡处理
+        # 死亡处理 + 经验奖励
         just_died = [e for e in alive if not e.alive]
         for de in just_died:
             self.push("")
@@ -486,6 +548,15 @@ class GameEngine:
             if item:
                 p.inventory.append(item)
                 self.push(f"获得物品：{item}")
+            # 武学经验
+            exp_gain = de.exp_reward
+            broke_through, bt_lines = p.gain_exp(exp_gain)
+            self.push(f"【武学经验 +{exp_gain}  进度：{p.exp_progress_str()}】")
+            if broke_through:
+                for ln in bt_lines:
+                    self.push(ln)
+                self._pending_breakthrough = True
+            p.total_kills += 1
             de.defeat_text = []
 
         # 检查战斗是否结束
@@ -512,7 +583,8 @@ class GameEngine:
     # ── 任务结算 ─────────────────────────────────────────────
 
     def _mission_complete(self):
-        reward = random.randint(*ROUTE["reward"])
+        r = getattr(self, "_current_route", ROUTE)
+        reward = random.randint(*r["reward"])
         self.player.silver += reward
         self.player.reputation += 10
         self.state = "mission_complete"

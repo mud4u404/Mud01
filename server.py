@@ -2,9 +2,11 @@
 """Flask Web 服务器 —— 供手机浏览器访问"""
 
 import uuid
+import json
 from flask import Flask, request, jsonify, render_template, session
 
 from game.engine import GameEngine
+from game.character import Player
 
 app = Flask(__name__)
 app.secret_key = "biaoju-mud-2025"
@@ -29,7 +31,6 @@ def index():
 
 @app.route("/api/start", methods=["POST"])
 def start():
-    """新游戏或获取当前状态"""
     engine = get_engine()
     return jsonify(engine._response())
 
@@ -39,7 +40,6 @@ def action():
     data = request.json or {}
     choice_id = str(data.get("choice_id", ""))
     text_input = str(data.get("text_input", ""))
-
     engine = get_engine()
     result = engine.apply_choice(choice_id, text_input)
     return jsonify(result)
@@ -55,6 +55,39 @@ def reset():
     return jsonify(engine._response())
 
 
+@app.route("/api/save", methods=["POST"])
+def save():
+    """把当前玩家存档数据序列化返回给前端（前端存 localStorage）"""
+    engine = get_engine()
+    if not engine.player:
+        return jsonify({"ok": False, "msg": "尚未创建角色"})
+    save_data = {
+        "player": engine.player.to_dict(),
+        "version": 1,
+    }
+    return jsonify({"ok": True, "data": save_data})
+
+
+@app.route("/api/load", methods=["POST"])
+def load():
+    """接收前端发来的存档 JSON，恢复游戏状态"""
+    body = request.json or {}
+    save_data = body.get("data")
+    if not save_data or "player" not in save_data:
+        return jsonify({"ok": False, "msg": "存档无效"})
+    try:
+        engine = get_engine()
+        engine.player = Player.from_dict(save_data["player"])
+        engine.state = "job_board"
+        engine._goto_job_board()
+        result = engine._response()
+        result["ok"] = True
+        result["msg"] = f"欢迎回来，{engine.player.name}。"
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"ok": False, "msg": f"读档失败：{e}"})
+
+
 if __name__ == "__main__":
     import socket
     hostname = socket.gethostname()
@@ -64,8 +97,7 @@ if __name__ == "__main__":
         local_ip = "127.0.0.1"
 
     print(f"\n镖局 MUD 已启动")
-    print(f"本机访问：http://127.0.0.1:5000")
-    print(f"局域网访问：http://{local_ip}:5000")
-    print(f"（手机和电脑需在同一 WiFi）\n")
+    print(f"本机访问：  http://127.0.0.1:5000")
+    print(f"手机访问：  http://{local_ip}:5000  （同一WiFi）\n")
 
     app.run(host="0.0.0.0", port=5000, debug=False)

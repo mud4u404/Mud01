@@ -280,4 +280,224 @@ MARTIAL_ARTS = {
             },
         ],
     },
+
+    "xingyiquan": {
+        "name": "形意拳",
+        "school": "形意门",
+        "desc": "五行拳法，劲整力透。一力降十会，金木水火土，各有克制。",
+        "stats": {"attack": 13, "defense": 7, "speed": 6, "energy": 85},
+        "techniques": [
+            {
+                "id": "pi_quan",
+                "name": "劈拳",
+                "energy_cost": 12,
+                "damage_mult": 1.5,
+                "speed": 6,
+                "special": None,
+                "hit": [
+                    "你沉肩坠肘，劈拳竖劈而下——",
+                    "金气贯通，劲如斧劈，{target}格挡手臂发麻，",
+                    "被震退两步，面露惊色。",
+                ],
+                "miss": [
+                    "劈拳落下，{target}侧身滑开，",
+                    "你掌风切过，带起一阵劲风。",
+                ],
+            },
+            {
+                "id": "zuanquan",
+                "name": "钻拳",
+                "energy_cost": 10,
+                "damage_mult": 1.2,
+                "speed": 8,
+                "special": {"type": "multi_hit", "hits": 2},
+                "hit": [
+                    "你拧腰转体，钻拳螺旋钻出——",
+                    "连打两拳，水形劲力，绵绵不绝，",
+                    "{target}来不及完全格挡，连中两击。【二连击】",
+                ],
+                "miss": [
+                    "钻拳旋转打出，{target}退步避开，",
+                    "你拳势落空，身形微晃。",
+                ],
+            },
+            {
+                "id": "beng_quan",
+                "name": "崩拳",
+                "energy_cost": 18,
+                "damage_mult": 2.0,
+                "speed": 4,
+                "special": None,
+                "hit": [
+                    "你蓄力一拳，木形崩拳直贯而出——",
+                    "劲透背后，{target}捂胸跌退，",
+                    "内脏受震，一时喘不过气来。",
+                ],
+                "miss": [
+                    "崩拳全力打出，{target}以奇妙步法避开，",
+                    "你一拳落空，气力耗去大半。",
+                ],
+            },
+        ],
+    },
+
+    "baguazhang": {
+        "name": "八卦掌",
+        "school": "八卦门",
+        "desc": "走圈换掌，身法飘逸。以走为守，以变应变，令对手无从捉摸。",
+        "stats": {"attack": 10, "defense": 7, "speed": 10, "energy": 90},
+        "techniques": [
+            {
+                "id": "qinglong_tan",
+                "name": "青龙探爪",
+                "energy_cost": 12,
+                "damage_mult": 1.3,
+                "speed": 9,
+                "special": {"type": "evade", "evade_boost": 20, "duration": 1},
+                "hit": [
+                    "你走圈游走，青龙探爪从侧面袭来——",
+                    "{target}难以判断你的方向，",
+                    "掌到之处，力透三分。【下回合闪避提升】",
+                ],
+                "miss": [
+                    "你绕步出掌，{target}转身格挡，",
+                    "你顺势转身，继续走圈。",
+                ],
+            },
+            {
+                "id": "fenglun_zhang",
+                "name": "风轮掌",
+                "energy_cost": 16,
+                "damage_mult": 1.2,
+                "speed": 8,
+                "special": {"type": "aoe", "aoe_mult": 1.4},
+                "hit": [
+                    "你双掌如风轮飞旋，带动气流——",
+                    "掌风席卷四方，{target}及周围之人",
+                    "皆被气浪震退。【风轮横扫群敌】",
+                ],
+                "miss": [
+                    "风轮掌旋转打出，气劲强劲，",
+                    "{target}以盾臂格住，退了半步。",
+                ],
+            },
+            {
+                "id": "zhuan_huan",
+                "name": "转环步",
+                "energy_cost": 10,
+                "damage_mult": 0,
+                "speed": 10,
+                "special": {"type": "evade", "evade_boost": 50, "duration": 1},
+                "hit": [
+                    "你脚踩八卦方位，身形飘移如鬼——",
+                    "让对手的攻击全部落空。【本回合闪避极高】",
+                ],
+                "miss": [],
+            },
+        ],
+    },
+
+    "tanglangquan": {
+        "name": "螳螂拳",
+        "school": "螳螂门",
+        "desc": "钩挂锁拿，快如闪电。模仿螳螂捕蝉之法，出手快狠准。",
+        "stats": {"attack": 12, "defense": 5, "speed": 8, "energy": 85},
+        "techniques": [
+            {
+                "id": "tanglang_gou",
+                "name": "螳螂钩",
+                "energy_cost": 10,
+                "damage_mult": 1.1,
+                "speed": 9,
+                "special": {"type": "multi_hit", "hits": 3},
+                "hit": [
+                    "你双手成螳螂钩，连环钩挂——",
+                    "快！快！快！三钩连出，",
+                    "{target}手忙脚乱，被连击三次。【三连钩】",
+                ],
+                "miss": [
+                    "三钩连出，{target}以横刀拨开，",
+                    "叮叮当当，你钩势被阻。",
+                ],
+            },
+            {
+                "id": "qinna_shou",
+                "name": "擒拿手",
+                "energy_cost": 14,
+                "damage_mult": 1.6,
+                "speed": 7,
+                "special": {"type": "bleed", "dot_damage": 3, "dot_duration": 2},
+                "hit": [
+                    "你倏地抓住{target}手腕，反关节拧折——",
+                    "骨骼发出轻响，对方痛呼出声，",
+                    "筋络损伤，此后行动受阻。【筋骨受损持续2回合】",
+                ],
+                "miss": [
+                    "你出手擒拿，{target}猛地缩手，",
+                    "险险避开了这个锁骨的机会。",
+                ],
+            },
+            {
+                "id": "puyue_shi",
+                "name": "扑跃式",
+                "energy_cost": 20,
+                "damage_mult": 1.8,
+                "speed": 5,
+                "special": {"type": "first_strike"},
+                "hit": [
+                    "你猛地扑跃而起，如螳螂捕蝉——",
+                    "居高临下，双钩齐下，",
+                    "{target}猝不及防，被压制在地。",
+                ],
+                "miss": [
+                    "你扑跃而起，{target}一个侧滚，",
+                    "你扑了个空，落地微微踉跄。",
+                ],
+            },
+        ],
+    },
+
+    "tongbiquan": {
+        "name": "通臂拳",
+        "school": "通臂门",
+        "desc": "长臂挥打，力如山崩。双臂如鞭，打击距离远，令人意想不到。",
+        "stats": {"attack": 15, "defense": 6, "speed": 5, "energy": 80},
+        "techniques": [
+            {
+                "id": "changbi_pi",
+                "name": "长臂劈打",
+                "energy_cost": 12,
+                "damage_mult": 1.6,
+                "speed": 5,
+                "special": None,
+                "hit": [
+                    "你双臂骤然伸长，如鞭子抽出——",
+                    "{target}以为你距离太远，放松了警惕，",
+                    "却被这意想不到的距离打了个正着。",
+                ],
+                "miss": [
+                    "长臂劈出，{target}后退一步刚好避开，",
+                    "他没想到你的臂力能打这么远，",
+                    "脸上闪过一丝惊讶。",
+                ],
+            },
+            {
+                "id": "shuang_tongbi",
+                "name": "双臂通劲",
+                "energy_cost": 22,
+                "damage_mult": 2.2,
+                "speed": 3,
+                "special": None,
+                "hit": [
+                    "你深吸一口气，通臂劲力蓄满——",
+                    "双臂同时轰出，力道之大，",
+                    "{target}被正面击飞，落地滚出数步。",
+                ],
+                "miss": [
+                    "双臂全力打出，{target}以横刀格挡，",
+                    "被震退数步，但堪堪挡住了。",
+                ],
+            },
+        ],
+    },
 }

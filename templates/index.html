@@ -10,225 +10,185 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:        #141410;
-      --bg2:       #1c1c16;
-      --bg3:       #242418;
-      --border:    #2e2e24;
-      --text:      #ddd6c0;
-      --text-dim:  #7a7060;
-      --gold:      #c8962a;
-      --red:       #c04040;
-      --green:     #4a9a5a;
-      --cyan:      #4a8a9a;
-      --radius:    6px;
+      --bg:       #141410;
+      --bg2:      #1c1c16;
+      --bg3:      #242418;
+      --border:   #2e2e24;
+      --text:     #ddd6c0;
+      --dim:      #7a7060;
+      --gold:     #c8962a;
+      --red:      #c04040;
+      --green:    #4a9a5a;
+      --cyan:     #4a8a9a;
+      --purple:   #8a5ab0;
+      --r: 6px;
     }
 
     html, body {
-      height: 100%;
-      background: var(--bg);
-      color: var(--text);
+      height: 100%; background: var(--bg); color: var(--text);
       font-family: 'PingFang SC', 'Hiragino Sans GB', 'STHeiti', 'Microsoft YaHei', sans-serif;
-      font-size: 15px;
-      line-height: 1.7;
-      overflow: hidden;
+      font-size: 15px; line-height: 1.75; overflow: hidden;
     }
 
-    /* ── 整体布局 ── */
-    #app {
-      display: flex;
-      flex-direction: column;
-      height: 100dvh;
-    }
+    #app { display: flex; flex-direction: column; height: 100dvh; }
 
     /* ── 顶部状态栏 ── */
     #status-bar {
-      flex-shrink: 0;
-      background: var(--bg2);
+      flex-shrink: 0; background: var(--bg2);
       border-bottom: 1px solid var(--border);
-      padding: 8px 16px;
-      display: flex;
-      gap: 12px;
-      font-size: 12px;
-      color: var(--text-dim);
-      align-items: center;
+      padding: 6px 12px; display: flex; gap: 10px;
+      font-size: 11px; color: var(--dim); align-items: center; flex-wrap: wrap;
     }
-    #status-bar .s-item { display: flex; align-items: center; gap: 4px; }
-    #status-bar .s-val  { color: var(--gold); font-weight: 500; }
-    #status-bar .s-hp   { color: var(--green); }
-    #status-bar .s-rep  { color: var(--cyan); }
-    #status-bar .logo   { margin-left: auto; color: var(--text-dim); font-size: 13px; letter-spacing: 2px; }
+    .s-val { font-weight: 600; }
+    .s-hp     { color: var(--green); }
+    .s-silver { color: var(--gold); }
+    .s-realm  { color: var(--purple); }
+    .s-exp    { color: var(--dim); font-size: 10px; }
+    #st-realm-bar {
+      flex: 1; min-width: 60px; background: #1a1a14;
+      border-radius: 2px; height: 4px; overflow: hidden;
+    }
+    #st-realm-fill { height: 100%; background: var(--purple); transition: width .5s; border-radius: 2px; }
+    .logo { margin-left: auto; color: var(--gold); font-size: 14px; letter-spacing: 2px; opacity: .7; }
 
     /* ── 主文字区 ── */
     #scroll-area {
-      flex: 1;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      padding: 16px 16px 8px;
+      flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      padding: 14px 16px 8px;
     }
-
-    .line {
-      margin-bottom: 2px;
-      animation: appear .25s ease both;
-    }
-    .line-empty { height: 10px; }
+    .line { margin-bottom: 2px; animation: appear .2s ease both; }
+    .line-empty { height: 8px; }
     .divider {
-      text-align: center;
-      color: var(--text-dim);
-      font-size: 12px;
-      margin: 14px 0 10px;
-      letter-spacing: 2px;
-      position: relative;
+      text-align: center; color: var(--dim); font-size: 11px;
+      margin: 14px 0 10px; letter-spacing: 3px; position: relative;
     }
-    .divider::before,
-    .divider::after {
-      content: '';
-      position: absolute;
-      top: 50%;
-      width: 25%;
-      height: 1px;
-      background: var(--border);
+    .divider::before, .divider::after {
+      content: ''; position: absolute; top: 50%; width: 25%; height: 1px; background: var(--border);
     }
-    .divider::before { left: 0; }
-    .divider::after  { right: 0; }
-
-    .line-hit    { color: #e8c878; }
+    .divider::before { left: 0; } .divider::after { right: 0; }
+    .line-hit    { color: #e8c870; }
     .line-damage { color: var(--red); }
     .line-gain   { color: var(--green); }
     .line-system { color: var(--cyan); font-size: 13px; }
-
+    .line-exp    { color: var(--purple); font-size: 12px; }
+    .line-bt     { color: var(--purple); font-weight: 600; letter-spacing: 1px; }
     @keyframes appear {
-      from { opacity: 0; transform: translateY(6px); }
+      from { opacity: 0; transform: translateY(5px); }
       to   { opacity: 1; transform: translateY(0); }
     }
 
-    /* ── 战斗状态面板 ── */
+    /* ── 战斗面板 ── */
     #combat-panel {
-      flex-shrink: 0;
-      background: var(--bg2);
+      flex-shrink: 0; background: var(--bg2);
       border-top: 1px solid var(--border);
-      padding: 10px 16px 6px;
-      display: none;
+      padding: 8px 12px 6px; display: none;
     }
     #combat-panel.show { display: block; }
-
-    .combatant {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 6px;
-      font-size: 13px;
-    }
-    .combatant-name { width: 90px; flex-shrink: 0; }
-    .bar-wrap  { flex: 1; background: #1a1a14; border-radius: 3px; height: 7px; overflow: hidden; }
-    .bar-fill  { height: 100%; border-radius: 3px; transition: width .4s; }
+    .combatant { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; font-size: 12px; }
+    .c-name { width: 88px; flex-shrink: 0; }
+    .bar-wrap  { flex: 1; background: #1a1a14; border-radius: 2px; height: 6px; overflow: hidden; }
+    .bar-fill  { height: 100%; border-radius: 2px; transition: width .4s; }
     .bar-hp    .bar-fill { background: var(--green); }
     .bar-enemy .bar-fill { background: var(--red); }
     .bar-energy .bar-fill { background: var(--cyan); }
-    .combatant-hp-text { font-size: 11px; color: var(--text-dim); width: 52px; text-align: right; }
+    .c-num { font-size: 10px; color: var(--dim); width: 50px; text-align: right; flex-shrink: 0; }
 
     /* ── 选项区 ── */
     #choices-area {
-      flex-shrink: 0;
-      padding: 10px 12px 12px;
-      background: var(--bg2);
-      border-top: 1px solid var(--border);
-      max-height: 42vh;
-      overflow-y: auto;
+      flex-shrink: 0; padding: 8px 10px 10px;
+      background: var(--bg2); border-top: 1px solid var(--border);
+      max-height: 44vh; overflow-y: auto;
     }
-
     .choice-btn {
-      display: block;
-      width: 100%;
-      padding: 11px 14px;
-      margin-bottom: 8px;
-      background: var(--bg3);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      color: var(--text);
-      font-size: 15px;
-      text-align: left;
-      cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
-      transition: background .1s;
+      display: block; width: 100%; padding: 10px 13px; margin-bottom: 7px;
+      background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r);
+      color: var(--text); font-size: 14px; text-align: left; cursor: pointer;
+      -webkit-tap-highlight-color: transparent; transition: background .1s;
     }
     .choice-btn:active { background: #2e2e22; }
-    .choice-btn .btn-sub {
-      display: block;
-      font-size: 11px;
-      color: var(--text-dim);
-      margin-top: 2px;
-    }
+    .choice-btn .btn-sub { display: block; font-size: 11px; color: var(--dim); margin-top: 2px; }
     .choice-btn.combat  { border-color: #5a2020; }
     .choice-btn.class   { border-color: #2a3a3a; }
     .choice-btn.mission { border-color: #3a3020; }
-    .choice-btn.danger  { border-color: #3a2020; color: #888; }
-    .choice-btn.disabled{ opacity: .4; pointer-events: none; }
+    .choice-btn.danger  { border-color: #3a2020; color: #666; }
+    .choice-btn.disabled{ opacity: .35; pointer-events: none; }
 
-    /* 名字输入 */
+    /* ── 名字输入 ── */
     #name-row {
-      display: none;
-      gap: 8px;
-      padding: 10px 12px 12px;
-      background: var(--bg2);
-      border-top: 1px solid var(--border);
+      display: none; gap: 8px; padding: 8px 10px 10px;
+      background: var(--bg2); border-top: 1px solid var(--border);
     }
     #name-row.show { display: flex; }
     #name-input {
-      flex: 1;
-      padding: 10px 12px;
-      background: var(--bg3);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      color: var(--text);
-      font-size: 16px;
+      flex: 1; padding: 10px 12px; background: var(--bg3);
+      border: 1px solid var(--border); border-radius: var(--r);
+      color: var(--text); font-size: 16px;
     }
-    #name-input::placeholder { color: var(--text-dim); }
+    #name-input::placeholder { color: var(--dim); }
     #name-submit {
-      padding: 10px 18px;
-      background: var(--gold);
-      border: none;
-      border-radius: var(--radius);
-      color: #000;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
+      padding: 10px 16px; background: var(--gold); border: none;
+      border-radius: var(--r); color: #000; font-size: 15px; font-weight: 600; cursor: pointer;
     }
 
-    /* 标题屏 */
+    /* ── 存/读档 ── */
+    #save-bar {
+      flex-shrink: 0; background: var(--bg2);
+      border-top: 1px solid var(--border);
+      padding: 6px 12px; display: flex; gap: 8px;
+    }
+    .save-btn {
+      flex: 1; padding: 7px 0; background: var(--bg3);
+      border: 1px solid var(--border); border-radius: var(--r);
+      color: var(--dim); font-size: 12px; cursor: pointer; text-align: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .save-btn:active { background: #2e2e22; }
+    #save-msg { font-size: 11px; color: var(--green); line-height: 2; display: none; }
+
+    /* ── 标题屏 ── */
     #title-screen {
-      position: absolute;
-      inset: 0;
-      background: var(--bg);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      z-index: 10;
+      position: absolute; inset: 0; background: var(--bg);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px; z-index: 10;
     }
     #title-screen h1 {
-      font-size: 48px;
-      letter-spacing: 12px;
-      color: var(--gold);
-      text-shadow: 0 0 30px rgba(200,150,42,.3);
+      font-size: 52px; letter-spacing: 16px; color: var(--gold);
+      text-shadow: 0 0 40px rgba(200,150,42,.25);
     }
-    #title-screen p {
-      color: var(--text-dim);
-      letter-spacing: 4px;
-      font-size: 14px;
-    }
+    #title-screen p { color: var(--dim); letter-spacing: 5px; font-size: 13px; }
     #title-screen .start-btn {
-      margin-top: 20px;
-      padding: 14px 40px;
-      background: transparent;
-      border: 1px solid var(--gold);
-      border-radius: 4px;
-      color: var(--gold);
-      font-size: 17px;
-      letter-spacing: 4px;
-      cursor: pointer;
+      margin-top: 16px; padding: 13px 44px;
+      background: transparent; border: 1px solid var(--gold);
+      border-radius: 4px; color: var(--gold); font-size: 16px;
+      letter-spacing: 4px; cursor: pointer;
     }
-    #title-screen .start-btn:active { background: rgba(200,150,42,.1); }
+    #title-screen .load-btn {
+      padding: 10px 30px; background: transparent;
+      border: 1px solid var(--dim); border-radius: 4px;
+      color: var(--dim); font-size: 14px; letter-spacing: 2px; cursor: pointer;
+    }
+
+    /* ── 突破动画遮罩 ── */
+    #breakthrough-overlay {
+      position: fixed; inset: 0; z-index: 99;
+      background: rgba(138, 90, 176, 0.15);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none;
+      transition: opacity .4s;
+    }
+    #breakthrough-overlay.show { opacity: 1; pointer-events: auto; }
+    #bt-content {
+      text-align: center; padding: 32px 40px;
+      background: var(--bg2); border: 1px solid var(--purple);
+      border-radius: 8px; max-width: 300px;
+    }
+    #bt-content h2 { color: var(--purple); font-size: 24px; letter-spacing: 6px; margin-bottom: 12px; }
+    #bt-content p  { color: var(--text); font-size: 14px; line-height: 1.8; margin-bottom: 16px; }
+    #bt-close {
+      padding: 10px 32px; background: var(--purple);
+      border: none; border-radius: 4px; color: #fff;
+      font-size: 14px; cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -237,27 +197,28 @@
 <div id="title-screen">
   <h1>镖局</h1>
   <p>义字当先，走遍天下</p>
-  <button class="start-btn" onclick="startGame()">踏入江湖</button>
+  <button class="start-btn" onclick="startNewGame()">踏入江湖</button>
+  <button class="load-btn"  onclick="loadGame()">读取存档</button>
+</div>
+
+<!-- 突破动画 -->
+<div id="breakthrough-overlay">
+  <div id="bt-content">
+    <h2 id="bt-realm">化境</h2>
+    <p id="bt-desc">人剑合一，随心所欲</p>
+    <button id="bt-close" onclick="closeBT()">继续</button>
+  </div>
 </div>
 
 <div id="app" style="display:none">
   <!-- 状态栏 -->
   <div id="status-bar">
-    <div class="s-item">
-      <span>HP</span>
-      <span class="s-val s-hp" id="st-hp">—</span>
-    </div>
-    <div class="s-item">
-      <span>内力</span>
-      <span class="s-val" id="st-energy">—</span>
-    </div>
-    <div class="s-item">
-      <span>银两</span>
-      <span class="s-val" id="st-silver">—</span>
-    </div>
-    <div class="s-item">
-      <span class="s-rep" id="st-rep">—</span>
-    </div>
+    <span>HP <span class="s-val s-hp" id="st-hp">—</span></span>
+    <span>内力 <span class="s-val" id="st-energy">—</span></span>
+    <span>银两 <span class="s-val s-silver" id="st-silver">—</span></span>
+    <span class="s-realm" id="st-realm">—</span>
+    <span class="s-exp" id="st-exp">—</span>
+    <div id="st-realm-bar"><div id="st-realm-fill" style="width:0%"></div></div>
     <span class="logo">镖</span>
   </div>
 
@@ -266,128 +227,178 @@
 
   <!-- 战斗面板 -->
   <div id="combat-panel">
-    <div id="player-row" class="combatant">
-      <span class="combatant-name" id="cp-player-name">—</span>
-      <div class="bar-wrap bar-hp"><div class="bar-fill" id="cp-player-hp" style="width:100%"></div></div>
-      <span class="combatant-hp-text" id="cp-player-hp-text">—</span>
+    <div class="combatant">
+      <span class="c-name" id="cp-pname">—</span>
+      <div class="bar-wrap bar-hp"><div class="bar-fill" id="cp-php" style="width:100%"></div></div>
+      <span class="c-num" id="cp-php-n">—</span>
     </div>
-    <div id="enemies-rows"></div>
-    <div class="combatant" style="margin-top:4px">
-      <span class="combatant-name" style="font-size:11px;color:var(--text-dim)">内力</span>
-      <div class="bar-wrap bar-energy"><div class="bar-fill" id="cp-player-energy" style="width:100%"></div></div>
-      <span class="combatant-hp-text" id="cp-player-energy-text">—</span>
+    <div id="enemy-rows"></div>
+    <div class="combatant" style="margin-top:2px">
+      <span class="c-name" style="font-size:10px;color:var(--dim)">内力</span>
+      <div class="bar-wrap bar-energy"><div class="bar-fill" id="cp-penergy" style="width:100%"></div></div>
+      <span class="c-num" id="cp-penergy-n">—</span>
     </div>
   </div>
 
   <!-- 名字输入 -->
   <div id="name-row">
-    <input id="name-input" type="text" placeholder="你的名字" maxlength="10"
+    <input id="name-input" type="text" placeholder="输入你的名字" maxlength="10"
            onkeydown="if(event.key==='Enter')submitName()">
     <button id="name-submit" onclick="submitName()">确认</button>
   </div>
 
   <!-- 选项区 -->
   <div id="choices-area"></div>
+
+  <!-- 存读档 -->
+  <div id="save-bar">
+    <button class="save-btn" onclick="saveGame()">存档</button>
+    <button class="save-btn" onclick="loadGame()">读档</button>
+    <button class="save-btn" onclick="resetGame()" style="color:var(--red)">新游戏</button>
+    <span id="save-msg"></span>
+  </div>
 </div>
 
 <script>
-const scrollArea   = document.getElementById('scroll-area');
-const choicesArea  = document.getElementById('choices-area');
-const nameRow      = document.getElementById('name-row');
-const nameInput    = document.getElementById('name-input');
-const combatPanel  = document.getElementById('combat-panel');
-let currentState   = 'title';
+const SAVE_KEY = 'biaoju_save_v1';
+let currentState = 'title';
+let currentRealm = '';
 
-async function api(endpoint, body={}) {
+// ── API 封装 ─────────────────────────────────────────────────
+async function api(endpoint, body = {}) {
   const r = await fetch(endpoint, {
     method: 'POST',
-    headers: {'Content-Type':'application/json'},
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   return r.json();
 }
 
-async function startGame() {
-  document.getElementById('title-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'flex';
+// ── 游戏流程 ─────────────────────────────────────────────────
+async function startNewGame() {
+  await api('/api/reset');
+  showApp();
   const data = await api('/api/start');
   render(data);
 }
 
-async function sendChoice(choiceId) {
-  const data = await api('/api/action', {choice_id: choiceId});
+async function sendChoice(id) {
+  const data = await api('/api/action', { choice_id: id });
   render(data);
 }
 
 async function submitName() {
-  const name = nameInput.value.trim() || '江湖客';
-  nameInput.value = '';
-  const data = await api('/api/action', {choice_id: name, text_input: name});
+  const name = document.getElementById('name-input').value.trim() || '江湖客';
+  document.getElementById('name-input').value = '';
+  const data = await api('/api/action', { choice_id: name, text_input: name });
   render(data);
 }
 
+async function saveGame() {
+  const res = await api('/api/save');
+  if (res.ok) {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(res.data));
+    showMsg('存档成功');
+  } else {
+    showMsg(res.msg || '存档失败', true);
+  }
+}
+
+async function loadGame() {
+  const raw = localStorage.getItem(SAVE_KEY);
+  if (!raw) { showMsg('没有存档', true); return; }
+  showApp();
+  const data = await api('/api/load', { data: JSON.parse(raw) });
+  if (data.ok) {
+    appendOutput([data.msg || '读档成功']);
+    render(data);
+  } else {
+    showMsg(data.msg || '读档失败', true);
+  }
+}
+
+async function resetGame() {
+  if (!confirm('开始新游戏？当前进度不会自动保存。')) return;
+  startNewGame();
+}
+
+// ── 渲染 ─────────────────────────────────────────────────────
 function render(data) {
+  if (!data) return;
   currentState = data.state;
 
-  // 输出文字
   appendOutput(data.output || []);
 
-  // 更新状态栏
+  // 状态栏
   if (data.player) {
     const p = data.player;
     document.getElementById('st-hp').textContent     = `${p.hp}/${p.max_hp}`;
     document.getElementById('st-energy').textContent = `${p.energy}/${p.max_energy}`;
     document.getElementById('st-silver').textContent = `${p.silver}两`;
-    document.getElementById('st-rep').textContent    = p.ma;
+    document.getElementById('st-realm').textContent  = `${p.ma} · ${p.realm || ''}`;
+
+    // 境界经验条
+    const expStr = p.exp_progress || '';
+    document.getElementById('st-exp').textContent = expStr === '已臻化境' ? '' : `悟·${expStr}`;
+    if (expStr && expStr !== '已臻化境') {
+      const parts = expStr.split('/');
+      const pct = parts.length === 2 ? Math.min(100, (parseInt(parts[0]) / parseInt(parts[1])) * 100) : 0;
+      document.getElementById('st-realm-fill').style.width = pct + '%';
+    }
+
+    // 突破动画
+    if (data.breakthrough && p.realm !== currentRealm) {
+      currentRealm = p.realm;
+      triggerBT(p.realm, '武学境界更进一层');
+    }
   }
 
   // 战斗面板
   if (data.state === 'combat' && data.player) {
-    combatPanel.classList.add('show');
     const p = data.player;
-    document.getElementById('cp-player-name').textContent     = p.name;
-    document.getElementById('cp-player-hp').style.width       = `${p.hp/p.max_hp*100}%`;
-    document.getElementById('cp-player-hp-text').textContent  = `${p.hp}/${p.max_hp}`;
-    document.getElementById('cp-player-energy').style.width   = `${p.energy/p.max_energy*100}%`;
-    document.getElementById('cp-player-energy-text').textContent = `${p.energy}`;
+    document.getElementById('combat-panel').classList.add('show');
+    document.getElementById('cp-pname').textContent   = p.name;
+    document.getElementById('cp-php').style.width     = `${p.hp / p.max_hp * 100}%`;
+    document.getElementById('cp-php-n').textContent   = `${p.hp}/${p.max_hp}`;
+    document.getElementById('cp-penergy').style.width = `${p.energy / p.max_energy * 100}%`;
+    document.getElementById('cp-penergy-n').textContent = p.energy;
 
-    const rows = document.getElementById('enemies-rows');
+    const rows = document.getElementById('enemy-rows');
     rows.innerHTML = '';
     (data.enemies || []).forEach(e => {
-      const pct = Math.max(0, e.hp/e.max_hp*100).toFixed(1);
-      const statusStr = e.status.map(s => ({poison:'☠',bleed:'🩸',defend:'🛡'}[s]||s)).join('');
+      const pct = Math.max(0, e.hp / e.max_hp * 100).toFixed(1);
+      const st = e.status.map(s => ({ poison: '☠', bleed: '🩸', defend: '🛡' }[s] || s)).join('');
       rows.innerHTML += `
         <div class="combatant">
-          <span class="combatant-name" style="font-size:12px;color:#c05050">
-            ${e.name} ${statusStr}
-          </span>
+          <span class="c-name" style="font-size:11px;color:#c05050">${e.name} ${st}</span>
           <div class="bar-wrap bar-enemy"><div class="bar-fill" style="width:${pct}%"></div></div>
-          <span class="combatant-hp-text">${e.hp}/${e.max_hp}</span>
+          <span class="c-num">${e.hp}/${e.max_hp}</span>
         </div>`;
     });
   } else {
-    combatPanel.classList.remove('show');
+    document.getElementById('combat-panel').classList.remove('show');
   }
 
-  // 名字输入
+  // 名字输入框
+  const nameRow = document.getElementById('name-row');
   if (data.state === 'name_input') {
     nameRow.classList.add('show');
-    choicesArea.innerHTML = '';
-    setTimeout(() => nameInput.focus(), 100);
+    document.getElementById('choices-area').innerHTML = '';
+    setTimeout(() => document.getElementById('name-input').focus(), 100);
   } else {
     nameRow.classList.remove('show');
   }
 
   // 选项按钮
-  if (data.state !== 'name_input') {
-    renderChoices(data.choices || []);
-  }
+  if (data.state !== 'name_input') renderChoices(data.choices || []);
 
-  // 自动滚到底部
-  scrollArea.scrollTop = scrollArea.scrollHeight;
+  // 滚到底
+  const sa = document.getElementById('scroll-area');
+  sa.scrollTop = sa.scrollHeight;
 }
 
 function appendOutput(lines) {
+  const sa = document.getElementById('scroll-area');
   lines.forEach(line => {
     const div = document.createElement('div');
     if (line.startsWith('__DIV__')) {
@@ -397,32 +408,70 @@ function appendOutput(lines) {
       div.className = 'line line-empty';
     } else {
       div.className = 'line';
-      // 简单着色规则
       if (line.startsWith('→ 造成') || line.startsWith('→ 你成功'))
         div.className += ' line-hit';
-      else if (line.startsWith('→ 你受到'))
+      else if (line.startsWith('→ 你受到') || line.startsWith('→ 攻击落空') === false && line.includes('受到'))
         div.className += ' line-damage';
-      else if (line.startsWith('获得') || line.includes('声望 +'))
+      else if (line.startsWith('获得') || line.includes('声望 +') || line.includes('HP恢复'))
         div.className += ' line-gain';
-      else if (line.startsWith('【'))
-        div.className += ' line-system';
+      else if (line.startsWith('【') || line.startsWith('  【'))
+        div.className += ' line-exp';
+      else if (line.includes('武学突破') || line.includes('══'))
+        div.className += ' line-bt';
       div.textContent = line;
     }
-    scrollArea.appendChild(div);
+    sa.appendChild(div);
   });
 }
 
 function renderChoices(choices) {
-  choicesArea.innerHTML = '';
+  const area = document.getElementById('choices-area');
+  area.innerHTML = '';
   choices.forEach(c => {
     if (!c || !c.id) return;
     const btn = document.createElement('button');
     btn.className = `choice-btn ${c.type || ''}`;
     btn.innerHTML = c.text + (c.sub ? `<span class="btn-sub">${c.sub}</span>` : '');
     btn.onclick = () => sendChoice(c.id);
-    choicesArea.appendChild(btn);
+    area.appendChild(btn);
   });
 }
+
+// ── 突破动画 ─────────────────────────────────────────────────
+function triggerBT(realmName, desc) {
+  document.getElementById('bt-realm').textContent = realmName;
+  document.getElementById('bt-desc').textContent  = desc;
+  const ov = document.getElementById('breakthrough-overlay');
+  ov.classList.add('show');
+  // iOS 震动
+  if (navigator.vibrate) navigator.vibrate([80, 40, 80, 40, 200]);
+}
+function closeBT() {
+  document.getElementById('breakthrough-overlay').classList.remove('show');
+}
+
+// ── 工具 ─────────────────────────────────────────────────────
+function showApp() {
+  document.getElementById('title-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+}
+
+function showMsg(msg, isErr = false) {
+  const el = document.getElementById('save-msg');
+  el.textContent = msg;
+  el.style.color = isErr ? 'var(--red)' : 'var(--green)';
+  el.style.display = 'inline';
+  setTimeout(() => el.style.display = 'none', 2000);
+}
+
+// 自动恢复会话（页面刷新不丢失）
+window.onload = async () => {
+  const data = await api('/api/start');
+  if (data.player) {
+    showApp();
+    render(data);
+  }
+};
 </script>
 </body>
 </html>
