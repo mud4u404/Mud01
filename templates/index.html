@@ -247,6 +247,7 @@
     <span class="s-realm" id="st-realm">—</span>
     <span class="s-exp" id="st-exp">—</span>
     <div id="st-realm-bar"><div id="st-realm-fill" style="width:0%"></div></div>
+    <span id="st-guild" style="color:var(--gold);font-size:10px"></span>
     <span class="logo">镖</span>
   </div>
 
@@ -429,6 +430,14 @@ function render(data) {
     // 势力声望
     if (p.faction_rep) renderFaction(p.faction_rep);
 
+    // 镖局信息
+    if (p.guild_name) {
+      const escortStr = p.escorts && p.escorts.length > 0
+        ? `  镖师×${p.escorts.length}` : '';
+      document.getElementById('st-guild').textContent =
+        p.guild_level > 0 ? `${p.guild_name}${escortStr}` : '';
+    }
+
     // 突破动画
     if (data.breakthrough && p.realm !== currentRealm) {
       currentRealm = p.realm;
@@ -456,6 +465,17 @@ function render(data) {
           <span class="c-name" style="font-size:11px;color:#c05050">${e.name} ${st}</span>
           <div class="bar-wrap bar-enemy"><div class="bar-fill" style="width:${pct}%"></div></div>
           <span class="c-num">${e.hp}/${e.max_hp}</span>
+        </div>`;
+    });
+    // 镖师HP条
+    const escorts = (data.player && data.player.escorts) || [];
+    escorts.forEach(e => {
+      const pct = Math.max(0, e.hp / e.max_hp * 100).toFixed(1);
+      rows.innerHTML += `
+        <div class="combatant">
+          <span class="c-name" style="font-size:10px;color:var(--cyan)">${e.name}</span>
+          <div class="bar-wrap" style="background:#1a1a14"><div class="bar-fill" style="width:${pct}%;background:var(--cyan)"></div></div>
+          <span class="c-num" style="font-size:10px">${e.hp}/${e.max_hp}</span>
         </div>`;
     });
   } else {

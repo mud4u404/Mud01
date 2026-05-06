@@ -13,6 +13,8 @@ from data.martial_arts import MARTIAL_ARTS
 from data.enemies import ENEMY_TEMPLATES
 from data.events_data import get_route_events
 from data.factions import FACTIONS, faction_label, get_faction_bonus
+from data.guild import (GUILD_LEVELS, ESCORT_TEMPLATES,
+                        get_available_escorts, rival_snatch_prob)
 
 
 ROUTES = {
@@ -111,6 +113,10 @@ class GameEngine:
             "realm_idx": p.realm_idx,
             "exp_progress": p.exp_progress_str(),
             "faction_rep": p.faction_rep,
+            "guild_level": p.guild_level,
+            "guild_name": GUILD_LEVELS[p.guild_level]["name"],
+            "guild_funds": p.guild_funds,
+            "escorts": [{"name": e["name"], "hp": e["hp"], "max_hp": e["max_hp"]} for e in p.escorts],
         } if p else None
 
         enemies_data = [
@@ -142,6 +148,8 @@ class GameEngine:
             "name_input":       self._on_name,
             "class_select":     self._on_class,
             "job_board":        self._on_job_board,
+            "guild_hall":       self._on_guild_hall,
+            "guild_hire":       self._on_guild_hire,
             "event":            self._on_event_choice,
             "combat":           self._on_combat,
             "combat_target":    self._on_combat_target,
@@ -229,6 +237,15 @@ class GameEngine:
                     "sub":  f"{r['desc']}  报酬：{lo}~{hi}两",
                     "type": "mission",
                 })
+        # 镖局经营入口
+        gl = GUILD_LEVELS[game_player.guild_level]
+        escort_info = f"镖师{len(game_player.escorts)}/{gl['max_escorts']}人" if gl["max_escorts"] > 0 else "尚无据点"
+        choices.append({
+            "id": "guild_hall",
+            "text": f"镖局管理  【{gl['name']}】",
+            "sub":  f"{escort_info}  · 公款{game_player.guild_funds}两",
+            "type": "class",
+        })
         choices.append({"id": "quit", "text": "离开游戏", "type": "danger"})
         self.choices = choices
 
@@ -240,6 +257,9 @@ class GameEngine:
             self.choices = []
             self.push("江湖路远，后会有期。")
             return
+        if cid == "guild_hall":
+            self._goto_guild_hall()
+            return
         if cid not in ROUTES:
             return
         route = ROUTES[cid]
@@ -247,6 +267,23 @@ class GameEngine:
             self.push("声望不足，此镖暂不接受。")
             self._goto_job_board()
             return
+        # 竞争对手抢单检定
+        snatch_p = rival_snatch_prob(self.player.reputation)
+        # 镖局等级≥2降低被抢概率
+        snatch_p *= max(0.3, 1.0 - self.player.guild_level * 0.15)
+        if random.random() < snatch_p:
+            from data.guild import RIVAL_GUILD
+            self.push(
+                "",
+                f"你刚到接镖台，{RIVAL_GUILD['name']}的镖头快你一步，",
+                f"把这批镖单截走了。",
+                f"掌柜苦笑：'声望不够，抢不过人家啊。'",
+                f"【{RIVAL_GUILD['name']}抢先接镖！提升声望可降低被抢概率】",
+                "",
+            )
+            self._goto_job_board()
+            return
+
         self._current_route = route
         dest = route["name"].split("→")[1].strip()
         self.push(
@@ -255,6 +292,13 @@ class GameEngine:
             f"此行难度【{route['difficulty']}】，",
             "听老镖师说，近来这段路不太平……",
         )
+        # 镖师随行提示
+        if self.player.escorts:
+            names = "、".join(e["name"] for e in self.player.escorts)
+            self.push(f"随行镖师：{names}")
+            # 恢复镖师HP到满
+            for e in self.player.escorts:
+                e["hp"] = e["max_hp"]
         self._events = get_route_events(self)
         self._event_idx = 0
         self._mandatory_done = False
@@ -636,6 +680,27 @@ class GameEngine:
                         self.push(ln.replace("{name}", actor.name))
                     self.push("→ 你成功闪避")
 
+        # 镖师出手（每人攻击当前目标）
+        living_enemies = [e for e in self.combat_enemies if e.alive]
+        for escort in p.escorts:
+            if escort["hp"] <= 0 or not living_enemies:
+                continue
+            etarget = living_enemies[0]
+            sk = escort["skill"]
+            raw_dmg = int(escort["attack"] * sk["damage_mult"])
+            dmg = max(1, raw_dmg - etarget.defense)
+            etarget.take_damage(raw_dmg)
+            self.push(f"  {escort['name']} 出手——{sk['name']}！对 {etarget.name} 造成 {dmg} 点伤害")
+            # 镖师也会被反伤（简化：随机一个存活敌人攻击镖师）
+            if living_enemies and random.random() < 0.3:
+                attacker = random.choice(living_enemies)
+                escort_dmg = max(1, attacker.attack - escort["defense"])
+                escort["hp"] = max(0, escort["hp"] - escort_dmg)
+                self.push(f"  {attacker.name} 反击 {escort['name']}，造成 {escort_dmg} 点伤害（HP {escort['hp']}/{escort['max_hp']}）")
+                if escort["hp"] == 0:
+                    self.push(f"  {escort['name']} 重伤倒下，暂时失去战斗能力！")
+            living_enemies = [e for e in self.combat_enemies if e.alive]
+
         # 状态效果结算
         all_status = p.tick_status()
         for e in alive:
@@ -704,6 +769,14 @@ class GameEngine:
             "",
             f"获得银两 {reward} 两",
             f"声望 +10",
+        )
+        # 镖师薪资结算
+        total_salary = sum(e["salary"] for e in self.player.escorts if e["hp"] > 0)
+        if total_salary > 0:
+            self.player.silver -= total_salary
+            names = "、".join(e["name"] for e in self.player.escorts if e["hp"] > 0)
+            self.push(f"发放镖师薪资：{names}  共 {total_salary} 两")
+        self.push(
             "",
             f"当前银两：{self.player.silver} 两",
             f"声望：{self.player.reputation}（{self._rep_label(self.player.reputation)}）",
@@ -726,6 +799,151 @@ class GameEngine:
 
     def _on_mission_end(self, cid, txt):
         self._goto_job_board()
+
+    # ── 镖局经营 ─────────────────────────────────────────────
+
+    def _goto_guild_hall(self):
+        self.state = "guild_hall"
+        p = self.player
+        gl = GUILD_LEVELS[p.guild_level]
+        self.divider(f"镖局管理  ·  {gl['name']}")
+        self.push(
+            "",
+            f"【{gl['name']}】{gl['desc']}",
+            f"个人银两：{p.silver}两  ·  公款：{p.guild_funds}两",
+            f"镖师队伍：{len(p.escorts)}/{gl['max_escorts']}人",
+        )
+        if p.escorts:
+            self.push("")
+            for e in p.escorts:
+                self.push(f"  · {e['name']}（{e['role_name']}）HP {e['hp']}/{e['max_hp']}  薪资{e['salary']}两/趟")
+        choices = []
+        # 升级按钮
+        next_lvl_idx = p.guild_level + 1
+        if next_lvl_idx < len(GUILD_LEVELS):
+            nxt = GUILD_LEVELS[next_lvl_idx]
+            can_upgrade = p.silver >= nxt["upgrade_cost"] and p.reputation >= nxt["upgrade_rep"]
+            choices.append({
+                "id": "upgrade",
+                "text": f"升级镖局  →  {nxt['name']}",
+                "sub":  f"需银两{nxt['upgrade_cost']}（当前{p.silver}）·声望{nxt['upgrade_rep']}（当前{p.reputation}）",
+                "type": "mission" if can_upgrade else "disabled",
+            })
+        # 雇佣镖师
+        if gl["max_escorts"] > 0 and len(p.escorts) < gl["max_escorts"]:
+            choices.append({"id": "hire", "text": "雇佣镖师", "sub": "查看可雇人员", "type": "class"})
+        # 解雇镖师
+        for i, e in enumerate(p.escorts):
+            choices.append({
+                "id": f"fire_{i}",
+                "text": f"解雇 {e['name']}",
+                "sub":  "立即解雇，不退雇佣金",
+                "type": "danger",
+            })
+        # 存入/取出公款
+        choices.append({"id": "deposit", "text": "存入100两公款", "sub": f"个人→公款（当前个人{p.silver}两）", "type": "normal"})
+        choices.append({"id": "withdraw", "text": "取出100两公款", "sub": f"公款→个人（当前公款{p.guild_funds}两）", "type": "normal"})
+        choices.append({"id": "back", "text": "返回镖局大堂", "type": "normal"})
+        self.choices = choices
+
+    def _on_guild_hall(self, cid, txt):
+        p = self.player
+        if cid == "back":
+            self._goto_job_board()
+            return
+        if cid == "upgrade":
+            nxt = GUILD_LEVELS[p.guild_level + 1]
+            if p.silver >= nxt["upgrade_cost"] and p.reputation >= nxt["upgrade_rep"]:
+                p.silver -= nxt["upgrade_cost"]
+                p.guild_level += 1
+                new = GUILD_LEVELS[p.guild_level]
+                self.push("", f"【镖局升级】恭喜！你的镖局已升级为「{new['name']}」！",
+                          f"银两 -{nxt['upgrade_cost']}，现可雇{new['max_escorts']}名镖师。")
+            else:
+                self.push("银两或声望不足，无法升级。")
+            self._goto_guild_hall()
+            return
+        if cid == "hire":
+            self._goto_guild_hire()
+            return
+        if cid.startswith("fire_"):
+            idx = int(cid.split("_")[1])
+            if 0 <= idx < len(p.escorts):
+                fired = p.escorts.pop(idx)
+                self.push(f"你解雇了{fired['name']}，他收拾行囊离去。")
+            self._goto_guild_hall()
+            return
+        if cid == "deposit":
+            amount = min(100, p.silver)
+            if amount > 0:
+                p.silver -= amount
+                p.guild_funds += amount
+                self.push(f"已存入 {amount} 两公款。")
+            else:
+                self.push("个人银两不足。")
+            self._goto_guild_hall()
+            return
+        if cid == "withdraw":
+            amount = min(100, p.guild_funds)
+            if amount > 0:
+                p.guild_funds -= amount
+                p.silver += amount
+                self.push(f"已取出 {amount} 两公款。")
+            else:
+                self.push("公款不足。")
+            self._goto_guild_hall()
+            return
+        self._goto_guild_hall()
+
+    def _goto_guild_hire(self):
+        self.state = "guild_hire"
+        p = self.player
+        gl = GUILD_LEVELS[p.guild_level]
+        available = get_available_escorts(p.guild_level)
+        hired_ids = {e["id"] for e in p.escorts}
+        self.divider("雇佣镖师")
+        self.push("", "当前可雇佣人员：")
+        choices = []
+        for tmpl in available:
+            if tmpl["id"] in hired_ids:
+                continue
+            can_afford = p.silver >= tmpl["hire_cost"]
+            choices.append({
+                "id": f"hire_{tmpl['id']}",
+                "text": f"{tmpl['name']}  （{tmpl['desc'][:12]}…）",
+                "sub":  f"雇佣金 {tmpl['hire_cost']}两  薪资{tmpl['salary']}两/趟  ATK{tmpl['attack']} HP{tmpl['hp']}",
+                "type": "class" if can_afford else "disabled",
+            })
+        if not choices:
+            self.push("暂无可雇佣人员（已全部雇满或银两不足）。")
+        choices.append({"id": "back", "text": "返回", "type": "normal"})
+        self.choices = choices
+
+    def _on_guild_hire(self, cid, txt):
+        p = self.player
+        if cid == "back":
+            self._goto_guild_hall()
+            return
+        if cid.startswith("hire_"):
+            tmpl_id = cid[5:]
+            tmpl = ESCORT_TEMPLATES.get(tmpl_id)
+            gl = GUILD_LEVELS[p.guild_level]
+            if tmpl and p.silver >= tmpl["hire_cost"] and len(p.escorts) < gl["max_escorts"]:
+                p.silver -= tmpl["hire_cost"]
+                escort = {
+                    "id": tmpl["id"],
+                    "name": tmpl["name"],
+                    "role_name": {"dao": "刀客", "qiang": "枪手", "anqi": "暗器手"}.get(tmpl["role"], tmpl["role"]),
+                    "hp": tmpl["hp"], "max_hp": tmpl["hp"],
+                    "attack": tmpl["attack"], "defense": tmpl["defense"],
+                    "speed": tmpl["speed"], "salary": tmpl["salary"],
+                    "skill": tmpl["skill"],
+                }
+                p.escorts.append(escort)
+                self.push(f"", f"【雇佣成功】{tmpl['name']} 加入你的队伍！", f"银两 -{tmpl['hire_cost']}。")
+            else:
+                self.push("雇佣失败：银两不足或队伍已满。")
+        self._goto_guild_hall()
 
     # ── 工具 ─────────────────────────────────────────────────
 

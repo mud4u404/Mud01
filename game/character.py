@@ -108,6 +108,11 @@ class Player(Character):
         self.ma_exp = 0             # 当前境界经验
         self.total_kills = 0        # 累计击败敌人数
 
+        # 镖局经营
+        self.guild_level = 0          # 0=无名, 1~4=草台~天下第一
+        self.guild_funds = 0          # 镖局公款（独立于个人银两）
+        self.escorts: list[dict] = [] # 已雇镖师 [{id, name, hp, max_hp, ...}]
+
         # 江湖三方势力声望 -100 ~ 100
         self.faction_rep = {
             "imperial":   0,   # 朝廷
@@ -208,6 +213,9 @@ class Player(Character):
             "inventory": self.inventory,
             "faction_rep": self.faction_rep,
             "npc_memory": self.npc_memory,
+            "guild_level": self.guild_level,
+            "guild_funds": self.guild_funds,
+            "escorts": self.escorts,
         }
 
     @classmethod
@@ -223,6 +231,9 @@ class Player(Character):
         p.inventory = d.get("inventory", [])
         p.faction_rep = d.get("faction_rep", {"imperial": 0, "orthodox": 0, "underworld": 0})
         p.npc_memory = d.get("npc_memory", {})
+        p.guild_level = d.get("guild_level", 0)
+        p.guild_funds = d.get("guild_funds", 0)
+        p.escorts = d.get("escorts", [])
         return p
 
     def change_faction(self, faction_id: str, delta: int):
