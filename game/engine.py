@@ -17,6 +17,7 @@ from data.guild import (GUILD_LEVELS, ESCORT_TEMPLATES,
                         get_available_escorts, rival_snatch_prob)
 from data.shop import SHOP_ITEMS, apply_item, apply_manual
 from data.achievements import check_and_unlock
+from data.main_story import check_story_triggers
 
 
 ROUTES = {
@@ -120,6 +121,7 @@ class GameEngine:
             "guild_name": GUILD_LEVELS[p.guild_level]["name"],
             "guild_funds": p.guild_funds,
             "escorts": [{"name": e["name"], "hp": e["hp"], "max_hp": e["max_hp"]} for e in p.escorts],
+            "achievement_count": len(p.achievements),
         } if p else None
 
         enemies_data = [
@@ -318,12 +320,19 @@ class GameEngine:
         self._event_idx = 0
         self._mandatory_done = False
         self._boss_done = False
+        self._story_triggered_this_route = False
         self._next_travel_phase()
 
     # ── 行程推进 ─────────────────────────────────────────────
 
     def _next_travel_phase(self):
-        """决定下一步：事件 → 必经战 → Boss → 完成"""
+        """决定下一步：主线触发 → 事件 → 必经战 → Boss → 完成"""
+        # 优先检测主线触发（每次只触发一个，避免重复）
+        story_evt = check_story_triggers(self)
+        if story_evt and not getattr(self, "_story_triggered_this_route", False):
+            self._story_triggered_this_route = True
+            self._start_event(story_evt)
+            return
         if self._event_idx < len(self._events):
             self._start_event(self._events[self._event_idx])
             self._event_idx += 1
