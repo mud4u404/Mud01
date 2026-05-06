@@ -15,12 +15,7 @@ if errorlevel 1 (
 )
 
 echo 正在安装依赖...
-py -m pip install -r requirements.txt -q
-if errorlevel 1 (
-    echo [错误] 依赖安装失败，请检查网络连接。
-    pause
-    exit /b 1
-)
+py -m pip install flask rich -q
 
 echo.
 echo 游戏启动中...
