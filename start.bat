@@ -1,6 +1,7 @@
 @echo off
 chcp 65001 >nul
 title 镖局MUD
+cd /d "%~dp0"
 
 echo 正在检查 Python...
 py --version >nul 2>&1
