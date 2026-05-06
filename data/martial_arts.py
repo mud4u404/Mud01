@@ -5,7 +5,7 @@ MARTIAL_ARTS = {
         "name": "少林长拳",
         "school": "少林寺",
         "desc": "刚猛浑厚，以力破巧。天下武功出少林，以正克邪。",
-        "stats": {"attack": 14, "defense": 8, "speed": 4, "energy": 80},
+        "stats": {"hp": 120, "attack": 13, "defense": 9, "speed": 4, "energy": 80},
         "techniques": [
             {
                 "id": "jingang_zhang",
@@ -60,7 +60,7 @@ MARTIAL_ARTS = {
         "name": "武当剑法",
         "school": "武当山",
         "desc": "以柔克刚，借力打力。一阴一阳谓之道，天下至柔驰天下至坚。",
-        "stats": {"attack": 9, "defense": 6, "speed": 9, "energy": 100},
+        "stats": {"hp": 100, "attack": 11, "defense": 6, "speed": 9, "energy": 100},
         "techniques": [
             {
                 "id": "taiji_jian",
@@ -122,7 +122,7 @@ MARTIAL_ARTS = {
         "name": "唐门暗器",
         "school": "四川唐门",
         "desc": "先发制人，毒辣无声。唐门暗器天下第一，见者无不胆寒。",
-        "stats": {"attack": 11, "defense": 4, "speed": 10, "energy": 90},
+        "stats": {"hp": 90, "attack": 12, "defense": 5, "speed": 10, "energy": 90},
         "techniques": [
             {
                 "id": "feibiao",
@@ -184,7 +184,7 @@ MARTIAL_ARTS = {
         "name": "青城剑法",
         "school": "青城派",
         "desc": "阴险毒辣，出招狠绝。青城山中习剑二十年，专取要害。",
-        "stats": {"attack": 12, "defense": 5, "speed": 7, "energy": 85},
+        "stats": {"hp": 100, "attack": 12, "defense": 6, "speed": 7, "energy": 85},
         "techniques": [
             {
                 "id": "guiying_jian",
@@ -241,7 +241,7 @@ MARTIAL_ARTS = {
         "name": "丐帮棍法",
         "school": "丐帮",
         "desc": "群战之王，打狗棒横扫千军。丐帮弟子遍天下，人多势众。",
-        "stats": {"attack": 10, "defense": 7, "speed": 6, "energy": 95},
+        "stats": {"hp": 115, "attack": 10, "defense": 8, "speed": 6, "energy": 95},
         "techniques": [
             {
                 "id": "dagou_bang",
@@ -285,7 +285,7 @@ MARTIAL_ARTS = {
         "name": "形意拳",
         "school": "形意门",
         "desc": "五行拳法，劲整力透。一力降十会，金木水火土，各有克制。",
-        "stats": {"attack": 13, "defense": 7, "speed": 6, "energy": 85},
+        "stats": {"hp": 110, "attack": 13, "defense": 7, "speed": 6, "energy": 85},
         "techniques": [
             {
                 "id": "pi_quan",
@@ -345,7 +345,7 @@ MARTIAL_ARTS = {
         "name": "八卦掌",
         "school": "八卦门",
         "desc": "走圈换掌，身法飘逸。以走为守，以变应变，令对手无从捉摸。",
-        "stats": {"attack": 10, "defense": 7, "speed": 10, "energy": 90},
+        "stats": {"hp": 95, "attack": 10, "defense": 8, "speed": 10, "energy": 90},
         "techniques": [
             {
                 "id": "qinglong_tan",
@@ -401,7 +401,7 @@ MARTIAL_ARTS = {
         "name": "螳螂拳",
         "school": "螳螂门",
         "desc": "钩挂锁拿，快如闪电。模仿螳螂捕蝉之法，出手快狠准。",
-        "stats": {"attack": 12, "defense": 5, "speed": 8, "energy": 85},
+        "stats": {"hp": 100, "attack": 12, "defense": 5, "speed": 8, "energy": 85},
         "techniques": [
             {
                 "id": "tanglang_gou",
@@ -461,7 +461,7 @@ MARTIAL_ARTS = {
         "name": "通臂拳",
         "school": "通臂门",
         "desc": "长臂挥打，力如山崩。双臂如鞭，打击距离远，令人意想不到。",
-        "stats": {"attack": 15, "defense": 6, "speed": 5, "energy": 80},
+        "stats": {"hp": 110, "attack": 14, "defense": 6, "speed": 5, "energy": 80},
         "techniques": [
             {
                 "id": "changbi_pi",

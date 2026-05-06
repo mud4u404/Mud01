@@ -29,8 +29,8 @@ ROUTES = {
         "reward": (40, 80),
         "time_labels": ["第一日·黄昏", "第二日·午时", "第三日·黎明"],
         "weathers":    ["晴",           "阴",          "雨"],
-        "mandatory_enemies": ["maozei_toumu", "maozei_xiaodi", "maozei_xiaodi"],
-        "boss_enemy": "mianren_shashi",
+        "mandatory_enemies": ["maozei_toumu", "maozei_xiaodi"],
+        "boss_enemy": "shanzhai_dangjia",
         "req_reputation": 0,
     },
     "taiyuan_luoyang": {
@@ -838,6 +838,9 @@ class GameEngine:
         if won:
             self.push("", "── 战斗结束，你胜出。──")
             self.player.recover_energy(30)
+            heal = int(self.player.max_hp * 0.25)
+            self.player.heal(heal)
+            self.push(f"稍作调息，恢复了 {heal} 点气血。（{self.player.hp}/{self.player.max_hp}）")
             if self._after_combat == "continue_travel":
                 self._next_travel_phase()
         else:

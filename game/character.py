@@ -93,7 +93,7 @@ class Player(Character):
     def __init__(self, name, martial_art_id):
         ma = MARTIAL_ARTS[martial_art_id]
         s = ma["stats"]
-        super().__init__(name, hp=100, attack=s["attack"], defense=s["defense"],
+        super().__init__(name, hp=s.get("hp", 100), attack=s["attack"], defense=s["defense"],
                          speed=s["speed"], energy=s["energy"])
         self.martial_art_id = martial_art_id
         self.silver = 50
