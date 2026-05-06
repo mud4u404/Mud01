@@ -1,6 +1,33 @@
 # 武功门派数据
 
 MARTIAL_ARTS = {
+
+    # ── 初始状态（未习武）────────────────────────────────────
+    "unarmed": {
+        "name": "粗浅搏击",
+        "school": "无门无派",
+        "desc": "没有任何武学基础，凭着本能和一身蛮力应对危险。",
+        "stats": {"hp": 75, "attack": 6, "defense": 2, "speed": 5, "energy": 40},
+        "techniques": [
+            {
+                "id": "wild_punch",
+                "name": "乱拳",
+                "energy_cost": 0,
+                "damage_mult": 1.0,
+                "speed": 5,
+                "special": None,
+                "hit": [
+                    "你毫无章法地冲上去，拳头胡乱打出——",
+                    "没有招式，全凭力气，{target}被你的蛮劲逼退了一步。",
+                ],
+                "miss": [
+                    "你冲上去挥了一拳，{target}轻易地侧身让过，",
+                    "你扑了个空，险些趔趄。",
+                ],
+            },
+        ],
+    },
+
     "shaolin": {
         "name": "少林长拳",
         "school": "少林寺",

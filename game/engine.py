@@ -19,6 +19,7 @@ from data.shop import SHOP_ITEMS, apply_item, apply_manual
 from data.achievements import check_and_unlock
 from data.main_story import check_story_triggers
 from data.quests import QUESTS, get_available_quests, get_quest_stage
+from data.town import TOWN_LOCATIONS, TOWN_NPCS
 
 
 ROUTES = {
@@ -72,7 +73,12 @@ class GameEngine:
         self.state = "title"
         self.choices: list[dict] = [{"id": "start", "text": "踏入江湖", "type": "normal"}]
         self._output: list[str] = []
-        self._prologue_shown = False   # 开场钩子是否已展示
+        self._prologue_shown = False
+
+        # 城镇探索
+        self._current_location: str = "town_entrance"
+        self._npc_meet_count: dict = {}     # {npc_id: 见面次数}
+        self._escort_hall_unlocked = False  # 镖局大堂是否解锁
 
         # 行程进度
         self._events: list[dict] = []
@@ -152,15 +158,18 @@ class GameEngine:
 
     def apply_choice(self, choice_id: str, text_input: str = "") -> dict:
         handlers = {
-            "title":            self._on_title,
-            "name_input":       self._on_name,
-            "class_select":     self._on_class,
-            "job_board":        self._on_job_board,
-            "tavern":           self._on_tavern,
-            "tavern_event":     self._on_tavern_event,
-            "quest_board":      self._on_quest_board,
-            "quest_active":     self._on_quest_active,
-            "guild_hall":       self._on_guild_hall,
+            "title":              self._on_title,
+            "name_input":         self._on_name,
+            "class_select":       self._on_class,
+            "town_explore":       self._on_town,
+            "npc_chat":           self._on_npc_chat,
+            "recruitment_test":   self._on_recruitment_test,
+            "job_board":          self._on_job_board,
+            "tavern":             self._on_tavern,
+            "tavern_event":       self._on_tavern_event,
+            "quest_board":        self._on_quest_board,
+            "quest_active":       self._on_quest_active,
+            "guild_hall":         self._on_guild_hall,
             "guild_hire":       self._on_guild_hire,
             "shop":             self._on_shop,
             "event":            self._on_event_choice,
@@ -180,44 +189,332 @@ class GameEngine:
         self.state = "name_input"
         self.choices = []
         self.push(
-            "── 江湖初入 ──", "",
-            "你自幼习武，胸怀大志。",
-            "如今盘缠将尽，只得投身镖局，以武谋生。",
             "",
-            "你叫什么名字？",
+            "深秋。官道。",
+            "",
+            "你已经走了三天，干粮在昨天早上就吃完了。",
+            "身上只剩几枚铜钱，够买一碗面，或者不够。",
+            "",
+            "前面的路牌上写着「长兴镇·三里」。",
+            "你迈动发酸的腿，继续走。",
+            "",
+            "── 你叫什么名字？ ──",
         )
 
-    # ── 名字 → 选门派 ────────────────────────────────────────
+    # ── 名字 → 进入长兴镇 ────────────────────────────────────
 
     def _on_name(self, cid, txt):
         name = (txt or cid or "江湖客").strip()[:10] or "江湖客"
         self._pending_name = name
+        # 以"无武功"状态创建角色
+        self.player = Player(name, "unarmed")
+        self.player.silver = 3   # 身无分文，只有3两铜钱
+        self._goto_town("town_entrance", arrival=True)
+
+    # ── 选武功门派（加入镖局后）────────────────────────────────
+
+    def _on_class(self, cid, txt):
+        if cid not in MARTIAL_ARTS or cid == "unarmed":
+            cid = "shaolin"
+        self.player.martial_art_id = cid
+        # 重新应用门派属性
+        ma = MARTIAL_ARTS[cid]
+        s = ma["stats"]
+        self.player.attack = s["attack"]
+        self.player.defense = s["defense"]
+        self.player.speed = s["speed"]
+        self.player.max_energy = s["energy"]
+        self.player.energy = s["energy"]
+        self.player.max_hp = s.get("hp", 100)
+        self.player.hp = self.player.max_hp
+        self.push(
+            "",
+            f"你拜入{ma['school']}门下，习练《{ma['name']}》。",
+            "三个月后，你终于有了自己的武功。",
+            "从今往后，这就是你的路。",
+            "",
+        )
+        self._prologue_shown = True
+        self._goto_job_board()
+
+    # ── 城镇探索系统 ─────────────────────────────────────────
+
+    def _goto_town(self, location_id: str, arrival: bool = False):
+        self.state = "town_explore"
+        self._current_location = location_id
+        loc = TOWN_LOCATIONS[location_id]
+
+        if arrival:
+            self.push(
+                "",
+                "════════════════════════",
+                f"  长兴镇，元丰三年，深秋。",
+                "════════════════════════",
+                "",
+                "镇口的石碑立在官道边，刻着「长兴镇」三字。",
+                "你在这里停下脚步。",
+                "不是因为这里有什么吸引你，",
+                "只是走不动了。",
+                "",
+                "身上：3两铜钱。",
+                "肚子：空的。",
+                "武功：没有。",
+                "",
+                "但你还站着。",
+                "",
+            )
+
+        self.divider(loc["name"])
+        for line in loc["desc"]:
+            self.push(line)
+        self.push("")
+
+        # NPC进入时发言
+        npc_ids = loc.get("npcs", [])
+        if npc_ids:
+            first_npc_id = npc_ids[0]
+            npc = TOWN_NPCS.get(first_npc_id)
+            if npc:
+                meet = self._npc_meet_count.get(first_npc_id, 0)
+                greeting_idx = min(meet, len(npc["greeting"]) - 1)
+                self.push(f"【{npc['name']} · {npc['title']}】")
+                self.push(npc["greeting"][greeting_idx])
+                self._npc_meet_count[first_npc_id] = meet + 1
+                self.push("")
+
+        self._build_town_choices(loc)
+
+    def _build_town_choices(self, loc: dict):
+        choices = []
+        # 可交谈的NPC
+        for npc_id in loc.get("npcs", []):
+            npc = TOWN_NPCS.get(npc_id)
+            if npc and npc.get("dialogue"):
+                choices.append({
+                    "id": f"talk_{npc_id}",
+                    "text": f"和{npc['name']}说话",
+                    "sub":  npc["title"],
+                    "type": "normal",
+                })
+        # 移动选项
+        exits = loc.get("exits", {})
+        for label, dest_id in exits.items():
+            # 镖局大堂在未解锁前不显示
+            if dest_id == "escort_hall" and not self._escort_hall_unlocked:
+                continue
+            choices.append({
+                "id": f"go_{dest_id}",
+                "text": f"前往{label}",
+                "type": "normal",
+            })
+        self.choices = choices
+
+    def _on_town(self, cid, txt):
+        p = self.player
+        loc = TOWN_LOCATIONS[self._current_location]
+
+        if cid.startswith("go_"):
+            dest = cid[3:]
+            if dest in TOWN_LOCATIONS:
+                self._goto_town(dest)
+            return
+
+        if cid.startswith("talk_"):
+            npc_id = cid[5:]
+            npc = TOWN_NPCS.get(npc_id)
+            if not npc or not npc.get("dialogue"):
+                return
+            self.state = "npc_chat"
+            self._current_npc = npc_id
+            self.push(f"", f"── 与{npc['name']}交谈 ──", "")
+            self.choices = [
+                {"id": str(i), "text": d["option"], "type": "normal"}
+                for i, d in enumerate(npc["dialogue"])
+            ] + [{"id": "leave", "text": "告辞", "type": "normal"}]
+            return
+
+    def _on_npc_chat(self, cid, txt):
+        npc_id = getattr(self, "_current_npc", None)
+        npc = TOWN_NPCS.get(npc_id) if npc_id else None
+        if not npc:
+            self._goto_town(self._current_location)
+            return
+
+        if cid == "leave":
+            self._goto_town(self._current_location)
+            return
+
+        if not cid.isdigit():
+            self._goto_town(self._current_location)
+            return
+
+        idx = int(cid)
+        dialogue = npc.get("dialogue", [])
+        if idx >= len(dialogue):
+            self._goto_town(self._current_location)
+            return
+
+        d = dialogue[idx]
+        # 费用
+        cost = d.get("cost", 0)
+        if cost > 0 and self.player.silver < cost:
+            self.push("银两不足。")
+            self._goto_town(self._current_location)
+            return
+        if cost > 0:
+            self.player.silver -= cost
+
+        self.push(*d["lines"])
+
+        # 奖励
+        reward = d.get("reward", {})
+        if reward.get("hp"):
+            self.player.heal(reward["hp"])
+        if reward.get("energy"):
+            self.player.energy = min(self.player.max_energy,
+                                     self.player.energy + reward["energy"])
+        if reward.get("hp_full"):
+            self.player.hp = self.player.max_hp
+            self.push(f"【气血恢复满值 {self.player.max_hp}】")
+        if reward.get("energy_full"):
+            self.player.energy = self.player.max_energy
+
+        # 解锁镖局大堂
+        if d.get("unlock_escort_hall"):
+            self._escort_hall_unlocked = True
+
+        # 触发招募考核
+        if d.get("trigger") == "recruitment_test":
+            self._start_recruitment_test()
+            return
+
+        self._goto_town(self._current_location)
+
+    # ── 招募考核 ─────────────────────────────────────────────
+
+    def _start_recruitment_test(self):
+        self.state = "recruitment_test"
+        self.push(
+            "",
+            "刘和平站起身，走到院子里，",
+            "从兵器架上取下两根木棍，扔给你一根：",
+            "'打过我三招，你就留下来。'",
+            "'打不过也没关系，就是……别太难看。'",
+            "",
+            "你握着木棍，第一次知道，",
+            "手心里出汗是什么感觉。",
+            "",
+        )
+        self.choices = [
+            {"id": "fight", "text": "应战", "type": "normal"},
+            {"id": "refuse", "text": "放弃，转身离开", "type": "normal"},
+        ]
+
+    def _on_recruitment_test(self, cid, txt):
+        if cid == "refuse":
+            self.push(
+                "你放下木棍，转身走了。",
+                "刘和平没有叫你回来。",
+                "",
+            )
+            self._goto_town("escort_hall")
+            return
+
+        # 触发战斗——用一个特殊的"考核"敌人
+        from data.enemies import ENEMY_TEMPLATES
+        test_enemy = {
+            "name": "刘和平（考核）",
+            "title": "威虎镖局掌柜",
+            "hp": 40,
+            "attack": 8,
+            "defense": 4,
+            "speed": 6,
+            "energy": 30,
+            "level": 2,
+            "school": "镖局基础刀法",
+            "exp_reward": 0,
+            "flee_threshold": 0.0,
+            "loot": {"silver": (0, 0), "item": None},
+            "defeat_text": [
+                "刘和平收住手，点点头：",
+                "'行，有点胆气。留下来。'",
+            ],
+            "techniques": [
+                {
+                    "name": "试探一击",
+                    "damage_mult": 0.8,
+                    "speed": 6,
+                    "energy_cost": 0,
+                    "hit": [
+                        "{name}出手点到为止，木棍轻磕你手腕——",
+                        "力道不重，但你能感觉到，他在让着你。",
+                    ],
+                    "miss": ["{name}虚晃一招，被你本能地躲过。"],
+                },
+                {
+                    "name": "压制",
+                    "damage_mult": 1.0,
+                    "speed": 5,
+                    "energy_cost": 0,
+                    "hit": [
+                        "{name}棍势沉稳，慢慢压过来——",
+                        "你勉强格住，手臂有些发麻。",
+                    ],
+                    "miss": ["{name}一棍压来，你歪打正着地躲开了。"],
+                },
+            ],
+        }
+        enemies = [Enemy(copy.deepcopy(test_enemy))]
+        self._after_combat = "recruitment_result"
+        self._begin_combat(enemies, [])
+
+    def _on_recruitment_result(self, won: bool):
+        p = self.player
+        if won:
+            self.push(
+                "",
+                "刘和平收棍，负手站在院中，",
+                "看着你，沉默了片刻：",
+                "'你没有功夫，但你敢上，这就够了。'",
+                "",
+                "'留下来，先做杂工，',",
+                "'吃住算在镖局，月钱二两。',",
+                "'等你学了点东西，再说走镖的事。'",
+                "",
+                "── 你加入了威虎镖局 ──",
+                "",
+            )
+        else:
+            self.push(
+                "",
+                "你被打倒在地，刘和平俯视着你。",
+                "他没有说你差，只是伸出手，把你拉起来：",
+                "'打得不赖，有股不服输的劲。留下来。'",
+                "",
+                "── 你加入了威虎镖局 ──",
+                "",
+            )
+
+        p.silver += 5  # 安置费
+        self.push(
+            "刘和平拍了拍你的肩膀：",
+            "'这五两银子是安置费，先置办点行头。",
+            "明天开始，老马会教你一些基础功夫。",
+            "你想学哪路？'",
+            "",
+            "── 选择你要习练的武功门派 ──",
+        )
         self.state = "class_select"
-        self.push(f"好，{name}。", "", "── 选择你的武功门派 ──", "")
         self.choices = [
             {
                 "id": key,
-                "text": f"{ma['name']}",
+                "text": ma["name"],
                 "sub":  f"{ma['school']} · {ma['desc']}",
-                "stats": f"攻{ma['stats']['attack']} 防{ma['stats']['defense']} "
-                         f"速{ma['stats']['speed']} 力{ma['stats']['energy']}",
                 "type": "class",
             }
             for key, ma in MARTIAL_ARTS.items()
+            if key != "unarmed"
         ]
-
-    # ── 选门派 → 英雄榜 ──────────────────────────────────────
-
-    def _on_class(self, cid, txt):
-        if cid not in MARTIAL_ARTS:
-            cid = next(iter(MARTIAL_ARTS))
-        self.player = Player(self._pending_name, cid)
-        ma = MARTIAL_ARTS[cid]
-        self.push(
-            f"你习得{ma['school']}传承的《{ma['name']}》，",
-            "背起行囊，踏入这无边江湖。",
-        )
-        self._goto_job_board()
 
     # ── 主目标系统 ───────────────────────────────────────────
 
@@ -287,14 +584,11 @@ class GameEngine:
         p = self.player
         game_player = p
         rep_label = self._rep_label(p.reputation)
-        # 首次进入展示开场钩子
-        if not self._prologue_shown:
-            self._show_prologue()
-        self.divider("大同府·聚义镖局")
+        self.divider("威虎镖局·大堂")
         self.push(
             "",
             "镖局大堂，英雄榜上贴满了镖单。",
-            f"掌柜见你进来，点头道：'{p.name}，可是要接镖？'",
+            f"刘掌柜见你进来，点头道：'{p.name}，可是要接镖？'",
             "",
             f"【银两 {p.silver} 两 · 声望 {p.reputation}（{rep_label}）· {p.get_current_ma()['name']}】",
         )
@@ -1300,8 +1594,12 @@ class GameEngine:
                     self._complete_quest(qid)
                 else:
                     self._goto_job_board()
+            elif self._after_combat == "recruitment_result":
+                self._on_recruitment_result(True)
         else:
-            if self._after_combat == "quest_stage":
+            if self._after_combat == "recruitment_result":
+                self._on_recruitment_result(False)
+            elif self._after_combat == "quest_stage":
                 self.player.hp = max(1, 30)
                 self.push("", "你落败受伤，任务暂时受阻，先回镖局歇息。")
                 self._goto_job_board()
