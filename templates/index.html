@@ -253,6 +253,11 @@
     <span class="logo">镖</span>
   </div>
 
+  <!-- 当前目标栏 -->
+  <div id="objective-bar" style="display:none; padding:5px 12px; background:var(--bg2); border-bottom:1px solid var(--border); font-size:11px; color:var(--dim);">
+    <span id="obj-label" style="color:var(--gold); margin-right:6px;"></span><span id="obj-text"></span>
+  </div>
+
   <!-- 势力声望折叠栏 -->
   <div id="faction-toggle" onclick="toggleFaction()">
     <span style="color:var(--dim);font-size:10px;flex-shrink:0">势力▾</span>
@@ -451,6 +456,14 @@ function render(data) {
       currentRealm = p.realm;
       triggerBT(p.realm, '武学境界更进一层');
     }
+  }
+
+  // 当前目标栏
+  if (data.objective && data.objective.text) {
+    const bar = document.getElementById('objective-bar');
+    bar.style.display = 'flex';
+    document.getElementById('obj-label').textContent = `▶ ${data.objective.label}`;
+    document.getElementById('obj-text').textContent  = data.objective.text;
   }
 
   // 战斗面板

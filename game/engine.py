@@ -72,6 +72,7 @@ class GameEngine:
         self.state = "title"
         self.choices: list[dict] = [{"id": "start", "text": "踏入江湖", "type": "normal"}]
         self._output: list[str] = []
+        self._prologue_shown = False   # 开场钩子是否已展示
 
         # 行程进度
         self._events: list[dict] = []
@@ -144,6 +145,7 @@ class GameEngine:
             "player": player_data,
             "enemies": enemies_data,
             "breakthrough": bt,
+            "objective": self._current_objective() if p else None,
         }
 
     # ── 主入口 ───────────────────────────────────────────────
@@ -217,11 +219,77 @@ class GameEngine:
         )
         self._goto_job_board()
 
+    # ── 主目标系统 ───────────────────────────────────────────
+
+    def _current_objective(self) -> dict:
+        """根据游戏进度返回当前主目标"""
+        p = self.player
+        if not p:
+            return {}
+        story = p.npc_memory.get("main_story", {})
+        chapter = story.get("chapter", 0)
+        total_missions = getattr(self, "_total_missions", 0)
+
+        # 主线剧情目标（优先显示）
+        if chapter == 1:
+            return {"label": "主线·第一章", "text": "继续走镖，寻找线索"}
+        if chapter == 2:
+            return {"label": "主线·第二章", "text": "深入调查，追查幕后黑手"}
+        if chapter == 3:
+            return {"label": "主线·终章", "text": "真相将揭——完成最后一趟镖"}
+
+        # 阶段性成长目标
+        if total_missions == 0:
+            return {"label": "初来乍到", "text": "接下第一单镖，在江湖上站稳脚跟"}
+        if p.realm_idx == 0:
+            needed = 60 - p.ma_exp
+            return {"label": "磨练功夫", "text": f"走镖积累经验，突破「入门」境界（还差{needed}点）"}
+        if p.reputation < 15:
+            return {"label": "闯出名头", "text": f"积累声望解锁中级镖路（{p.reputation}/15）"}
+        if p.realm_idx == 1:
+            needed = 180 - p.ma_exp
+            return {"label": "更上一层", "text": f"距离「登堂」境界还差{needed}点经验"}
+        if p.reputation < 40:
+            return {"label": "威名远播", "text": f"积累声望解锁高级镖路（{p.reputation}/40）"}
+        if p.guild_level == 0:
+            return {"label": "成家立业", "text": "积攒资金，将镖局升级（镖局管理→升级）"}
+        if p.realm_idx <= 2:
+            needed = 400 - p.ma_exp
+            return {"label": "宗师之路", "text": f"距离「入室」境界还差{needed}点经验"}
+        return {"label": "纵横江湖", "text": "探索更多可能，完成主线剧情"}
+
+    def _show_prologue(self):
+        """首次进入镖局时展示开场背景"""
+        self._prologue_shown = True
+        self.push(
+            "",
+            "════════════════════════",
+            "  大同府，元丰三年，秋。",
+            "════════════════════════",
+            "",
+            "你只身来到这座边塞城池，盘缠将尽。",
+            "镖局接人，管吃管住，还有工钱——",
+            "你在聚义镖局的招募榜前停下脚步。",
+            "",
+            "但城里有个消息在悄悄传：",
+            "近来有几家镖局接连出事，货丢了，人死了，",
+            "官府说是意外，但走镖的老手都知道，",
+            "这不像意外。",
+            "",
+            "没人知道幕后是谁，也没人敢查。",
+            "",
+            "你捏了捏腰牌，推开了镖局的大门。",
+            "",
+        )
+
     def _goto_job_board(self):
         self.state = "job_board"
         p = self.player
         game_player = p
         rep_label = self._rep_label(p.reputation)
+        # 首次进入展示开场钩子
+        if not self._prologue_shown:
+            self._show_prologue()
         self.divider("大同府·聚义镖局")
         self.push(
             "",
