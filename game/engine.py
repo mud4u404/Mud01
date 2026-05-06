@@ -551,6 +551,22 @@ class GameEngine:
 
         choices.append({"id": "recover", "text": "调息蓄气", "sub": "恢复内力 +20", "type": "normal"})
 
+        # 背包药品（只显示消耗品，去重计数）
+        inv_seen = {}
+        for iid in p.inventory:
+            item = SHOP_ITEMS.get(iid)
+            if item and item["type"] == "consumable":
+                inv_seen[iid] = inv_seen.get(iid, 0) + 1
+        for iid, cnt in inv_seen.items():
+            item = SHOP_ITEMS[iid]
+            cnt_str = f" ×{cnt}" if cnt > 1 else ""
+            choices.append({
+                "id": f"item_{iid}",
+                "text": f"行囊：{item['name']}{cnt_str}",
+                "sub":  item["desc"],
+                "type": "normal",
+            })
+
         # 逃跑：损失声望，只在非Boss战允许
         is_boss = len(alive) == 1 and alive[0].level >= 7
         if not is_boss:
@@ -586,6 +602,16 @@ class GameEngine:
             p.reputation = max(0, p.reputation - 5)
             self.push("", "你力战不敌，拼命脱身而去。", "【声望 -5】")
             self._mission_fail()
+            return
+
+        # 使用背包物品（不消耗行动，但会跳过玩家出招）
+        if cid.startswith("item_"):
+            item_id = cid[5:]
+            if item_id in p.inventory:
+                lines = apply_item(p, item_id)
+                p.inventory.remove(item_id)
+                self.push("", *lines)
+            self._build_combat_choices()
             return
 
         self._combat_round += 1
@@ -969,7 +995,24 @@ class GameEngine:
         self.push("", f"掌柜笑脸相迎：'客官，货色都是真的，银两要带够哦。'",
                   f"  当前银两：{p.silver} 两  · HP：{p.hp}/{p.max_hp}  内力：{p.energy}/{p.max_energy}", "")
         choices = []
-        # 消耗品
+        # 行囊中已有的药品
+        inv_consumables = [iid for iid in p.inventory if iid in SHOP_ITEMS and SHOP_ITEMS[iid]["type"] == "consumable"]
+        if inv_consumables:
+            choices.append({"id": "__div2__", "text": "── 行囊（可立即使用） ──", "type": "disabled"})
+            seen = {}
+            for iid in inv_consumables:
+                seen[iid] = seen.get(iid, 0) + 1
+            for iid, cnt in seen.items():
+                item = SHOP_ITEMS[iid]
+                cnt_str = f" ×{cnt}" if cnt > 1 else ""
+                choices.append({
+                    "id": f"use_{iid}",
+                    "text": f"使用 {item['name']}{cnt_str}",
+                    "sub":  item["desc"],
+                    "type": "normal",
+                })
+        # 购买消耗品
+        choices.append({"id": "__div__", "text": "── 购买药品 ──", "type": "disabled"})
         for item in SHOP_ITEMS.values():
             if item["type"] != "consumable":
                 continue
@@ -1015,6 +1058,14 @@ class GameEngine:
         if cid == "back":
             self._goto_job_board()
             return
+        if cid.startswith("use_"):
+            item_id = cid[4:]
+            if item_id in p.inventory:
+                lines = apply_item(p, item_id)
+                p.inventory.remove(item_id)
+                self.push(*lines)
+            self._goto_shop()
+            return
         if cid.startswith("buy_"):
             item_id = cid[4:]
             item = SHOP_ITEMS.get(item_id)
@@ -1024,10 +1075,11 @@ class GameEngine:
                 return
             p.silver -= item["cost"]
             if item["type"] == "consumable":
-                lines = apply_item(p, item_id)
+                p.inventory.append(item_id)
+                self.push(f"购入 {item['name']}，已放入行囊。（{item['desc']}）")
             else:
                 lines = apply_manual(p, item_id)
-            self.push(*lines)
+                self.push(*lines)
             self.push(f"剩余银两：{p.silver} 两")
         self._goto_shop()
 

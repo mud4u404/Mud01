@@ -728,6 +728,361 @@ def _ignore_competition(game):
     ]
 
 
+def event_ghost_village(game):
+    """诡异空村"""
+    return {
+        "id": "ghost_village",
+        "title": "死寂空村",
+        "narrative": [
+            "路旁有个小村，炊烟不起，狗也不叫。",
+            "推门进去——锅里还有半熟的饭，",
+            "桌上的碗筷七零八落，像是有人急急离席。",
+            "村子里一个人影都没有，",
+            "偶有风过，发出令人不安的呜咽声。",
+        ],
+        "choices": [
+            {
+                "text": "仔细搜查，找出蹊跷",
+                "condition": lambda g: True,
+                "outcome": lambda g: _investigate_village(g),
+            },
+            {
+                "text": "不吉之地，速速离开",
+                "condition": lambda g: True,
+                "outcome": lambda g: _flee_village(g),
+            },
+            {
+                "text": "在此歇脚，顺手拿些干粮",
+                "condition": lambda g: True,
+                "outcome": lambda g: _rest_village(g),
+            },
+        ],
+    }
+
+def _investigate_village(game):
+    roll = random.random()
+    if roll < 0.5:
+        game.player.reputation += 10
+        return [
+            "你在村子深处发现一个地窖——",
+            "里面藏着三十多口村民，",
+            "他们见了你，哭声一片：",
+            "'好汉，山上来了伙匪徒，我们躲了三天了……'",
+            "你帮他们驱走了附近的匪徒，",
+            "村长握着你的手，泣不成声：'大恩大德，没齿难忘。'",
+            "【声望 +10，此村落从此欠你一份情】",
+        ]
+    else:
+        from data.enemies import ENEMY_TEMPLATES
+        import copy
+        game.pending_combat = [copy.deepcopy(ENEMY_TEMPLATES["lulinjun"]),
+                               copy.deepcopy(ENEMY_TEMPLATES["maozei_xiaodi"])]
+        return [
+            "你在粮仓后面发现了脚印——",
+            "原来村民都被挟持走了，",
+            "而留守的两个匪徒，这时正从背后扑来！",
+            "【进入战斗：被偷袭，敌人先手】",
+        ]
+
+def _flee_village(game):
+    return [
+        "你不做停留，快步穿村而过。",
+        "背后那片死寂，久久萦绕心头。",
+        "江湖之大，光怪陆离，你见过的还不够多。",
+    ]
+
+def _rest_village(game):
+    game.player.hp = min(game.player.max_hp, game.player.hp + 15)
+    game.player.reputation -= 3
+    return [
+        "你在村子里找了张床，补了个觉，",
+        "又摸了些干粮揣入怀中。",
+        "离开时，你把十几枚铜钱压在桌上。",
+        "……但心里还是有点不安。",
+        "【HP +15，声望 -3】",
+    ]
+
+
+def event_gambling_den(game):
+    """赌坊奇遇"""
+    return {
+        "id": "gambling_den",
+        "title": "路边赌坊",
+        "narrative": [
+            "镇上一家赌坊，叫声震天。",
+            "你推门进去，见一桌豪客正在押宝，",
+            "骰子声、银锭碰撞声混作一团。",
+            "庄家见你：'客官，来一把？'",
+        ],
+        "choices": [
+            {
+                "text": "押十两银子，赌一把",
+                "condition": lambda g: g.player.silver >= 10,
+                "outcome": lambda g: _gamble_ten(g),
+            },
+            {
+                "text": "押三十两，大干一场",
+                "condition": lambda g: g.player.silver >= 30,
+                "outcome": lambda g: _gamble_thirty(g),
+            },
+            {
+                "text": "看别人赌，不动银子",
+                "condition": lambda g: True,
+                "outcome": lambda g: _watch_gamble(g),
+            },
+        ],
+    }
+
+def _gamble_ten(game):
+    if random.random() < 0.45:
+        game.player.silver += 15
+        return ["骰子一开，三个六！", "你赢了十五两，庄家脸色微变。", "【银两 +15】"]
+    game.player.silver -= 10
+    return ["骰子一开，押错了。", "十两就这么没了。", "【银两 -10】"]
+
+def _gamble_thirty(game):
+    if random.random() < 0.4:
+        game.player.silver += 50
+        game.player.reputation += 3
+        return ["大开！三个六，包揽全桌！",
+                "满堂皆惊，有人鼓掌，有人色变。",
+                "【银两 +50，声望 +3，赌神附体】"]
+    game.player.silver -= 30
+    return ["开盖——输了。", "三十两哗哗流走，庄家笑而不语。", "【银两 -30】"]
+
+def _watch_gamble(game):
+    game.player.martial_insight += 1
+    return [
+        "你站在一旁，看了七八局。",
+        "赌局的胜负，和武功的出手，",
+        "有几分相似：都在于把握那个节点。",
+        "赌徒在最贪时输得最惨——",
+        "这个道理，你记在心里。",
+        "【武学感悟 +1：临阵不贪】",
+    ]
+
+
+def event_disguised_beggar(game):
+    """扮成乞丐的高手"""
+    return {
+        "id": "disguised_beggar",
+        "title": "路边乞丐",
+        "narrative": [
+            "官道旁，一个衣衫破烂的老乞丐伸手讨钱。",
+            "你正要掏铜钱，忽然注意到——",
+            "他的双手，虎口处厚茧连连，",
+            "那是习武数十年才会留下的印记。",
+        ],
+        "choices": [
+            {
+                "text": "给他铜钱，装作没看见",
+                "condition": lambda g: g.player.silver >= 1,
+                "outcome": lambda g: _give_beggar_coin(g),
+            },
+            {
+                "text": "直接说出：'前辈功夫了得，晚辈有眼不识泰山'",
+                "condition": lambda g: g.player.reputation >= 20,
+                "outcome": lambda g: _recognize_beggar(g),
+            },
+            {
+                "text": "挑衅道：'这位前辈，要不要切磋一下？'",
+                "condition": lambda g: g.player.realm_idx >= 2,
+                "outcome": lambda g: _challenge_beggar(g),
+            },
+        ],
+    }
+
+def _give_beggar_coin(game):
+    game.player.silver -= 1
+    return [
+        "你掏出几枚铜钱放在他碗里，",
+        "乞丐抬头看了你一眼，忽然笑了：",
+        "'好眼力，好心肠。'",
+        "他站起身，抖落满身尘土——",
+        "那是一个须发皆白的老人，腰背挺直如松。",
+        "'今日之事，算你我有缘，后会有期。'",
+        "说完，他就这么走进了人群，消失不见。",
+        "这次相遇，你说不清是吉是凶。",
+    ]
+
+def _recognize_beggar(game):
+    game.player.reputation += 5
+    broke, bt = game.player.gain_exp(40)
+    lines = [
+        "乞丐愣了片刻，随即哈哈大笑：",
+        "'没想到还有人识得老夫。'",
+        "他与你随手打了几个照面，每一招都意境深远，",
+        "临别拍拍你的肩：",
+        "'你的功夫，再磨十年，或许有点意思。'",
+        "【声望 +5，武学经验 +40】",
+    ]
+    if broke:
+        lines += bt
+    return lines
+
+def _challenge_beggar(game):
+    game.player.hp = max(1, game.player.hp - 25)
+    broke, bt = game.player.gain_exp(80)
+    lines = [
+        "乞丐看你一眼，淡淡道：'来吧。'",
+        "你全力出手，三招之内，",
+        "已被他一根手指封住了穴道，",
+        "半边身子僵在原地动弹不得。",
+        "他松开，摇摇头：'年轻人，火候不够。'",
+        "虽然落败，这次见识让你对武学的理解又深了一层。",
+        "【HP -25，武学经验 +80——跟顶尖高手过招，胜负之外别有收获】",
+    ]
+    if broke:
+        lines += bt
+    return lines
+
+
+def event_river_crossing(game):
+    """渡河奇遇"""
+    return {
+        "id": "river_crossing",
+        "title": "渡河遇险",
+        "narrative": [
+            "前路被大河拦住，渡口有艘小船，",
+            "船夫是个五十来岁的老汉，眼神精明。",
+            "'渡河，一两银子一人。'",
+            "正谈价钱，上游忽然传来呼救声——",
+            "有人落水了！",
+        ],
+        "choices": [
+            {
+                "text": "跳入水中，出手相救",
+                "condition": lambda g: True,
+                "outcome": lambda g: _rescue_drowning(g),
+            },
+            {
+                "text": "叫船夫去救，你负责撑船",
+                "condition": lambda g: True,
+                "outcome": lambda g: _coordinate_rescue(g),
+            },
+            {
+                "text": "先付钱过河，救人另当别论",
+                "condition": lambda g: g.player.silver >= 1,
+                "outcome": lambda g: _cross_first(g),
+            },
+        ],
+    }
+
+def _rescue_drowning(game):
+    roll = random.random()
+    if roll < 0.7:
+        game.player.reputation += 8
+        game.player.hp = min(game.player.max_hp, game.player.hp + 10)
+        return [
+            "你纵身入水，在急流中找到了那人——",
+            "是个十来岁的孩子，被水流冲了好远。",
+            "你将他拖上岸，孩子的父母扑过来，泪流满面。",
+            "原来那一家是行商，父亲掏出所有盘缠表示感谢，",
+            "你只收了路费，其余都还给了他们。",
+            "【声望 +8，HP +10，结识善缘】",
+        ]
+    else:
+        game.player.hp = max(1, game.player.hp - 15)
+        game.player.reputation += 4
+        return [
+            "你跳入水中，水流比想象的急猛，",
+            "你费了好大力气，才将那人推上了岸。",
+            "自己却被水冲了一段，好不狼狈地爬上岸。",
+            "那人感激不尽，却也看出你负了暗伤。",
+            "【声望 +4，HP -15——救人成功但自身受损】",
+        ]
+
+def _coordinate_rescue(game):
+    game.player.reputation += 5
+    return [
+        "你接过船篙，船夫跳水而去——",
+        "两人配合，硬是将落水者拉上了船。",
+        "船夫见你临危不乱，赞道：'好汉子！'",
+        "主动退还了你的船钱。",
+        "【声望 +5，渡河费用退还】",
+    ]
+
+def _cross_first(game):
+    game.player.silver -= 1
+    game.player.reputation -= 2
+    return [
+        "你付了船钱，上船等候。",
+        "船夫犹豫了一下，最终还是去救了那人。",
+        "对岸上，你没有回头。",
+        "江湖里，见死不救的人多了，",
+        "但你心里，终究有点什么堵着。",
+        "【声望 -2】",
+    ]
+
+
+def event_escort_competition(game):
+    """镖局竞标：抢夺大镖单"""
+    return {
+        "id": "escort_competition",
+        "title": "镖单争夺战",
+        "narrative": [
+            "大同府衙旁，一家大商号贴出告示：",
+            "有批珍贵货物急运洛阳，悬赏三百两。",
+            "你刚要上前，聚义镖局的人也来了——",
+            "那是你的老对手，腰间镖旗猎猎作响。",
+            "商号掌柜看看你，又看看对方：",
+            "'两位都是行家，那就比比看，谁更有诚意。'",
+        ],
+        "choices": [
+            {
+                "text": "以声望说话，陈述以往走镖记录",
+                "condition": lambda g: g.player.reputation >= 25,
+                "outcome": lambda g: _compete_reputation(g),
+            },
+            {
+                "text": "压低报价，争取这单生意",
+                "condition": lambda g: g.player.silver >= 20,
+                "outcome": lambda g: _compete_price(g),
+            },
+            {
+                "text": "放弃竞争，将这单留给对方",
+                "condition": lambda g: True,
+                "outcome": lambda g: _concede_competition(g),
+            },
+        ],
+    }
+
+def _compete_reputation(game):
+    game.player.reputation += 8
+    game.player.silver += 80
+    return [
+        "你不慌不忙，列出这一年来的走镖记录——",
+        "次次安全，无一失误，雇主个个满意。",
+        "商号掌柜听完，朝对手笑笑：'改日再合作。'",
+        "转身对你：'这批货，就托付给你了。'",
+        "聚义镖局的人咬牙离去，这次是你赢了。",
+        "【声望 +8，提前获得额外报酬 80 两】",
+    ]
+
+def _compete_price(game):
+    game.player.silver -= 20
+    game.player.silver += 120
+    return [
+        "你当场垫付了二十两保证金，",
+        "承诺一旦失误，双倍赔偿。",
+        "商号掌柜眼睛一亮，拍板定案。",
+        "对手嗤笑一声，拂袖而去：",
+        "'迟早有你哭的时候。'",
+        "【付出20两押金，获得120两镖资】",
+    ]
+
+def _concede_competition(game):
+    game.player.reputation += 3
+    return [
+        "你拱拱手：'这单，先让给聚义镖局吧。'",
+        "对手一愣，没料到你会主动退让，",
+        "反而有点不自在。",
+        "商号掌柜对你印象颇好：'大方，下次有机会合作。'",
+        "你知道江湖路长，不必争一时之胜负。",
+        "【声望 +3，留下好印象，为日后积累人脉】",
+    ]
+
+
 # ── 事件池 ───────────────────────────────────────────────────
 
 EVENT_POOL_EARLY = [
@@ -739,6 +1094,10 @@ EVENT_POOL_EARLY = [
     event_mountain_monastery,
     event_wang_fu,
     event_zhang_butou,
+    event_ghost_village,
+    event_gambling_den,
+    event_river_crossing,
+    event_disguised_beggar,
 ]
 EVENT_POOL_MID = [
     event_rival_escort,
@@ -749,6 +1108,10 @@ EVENT_POOL_MID = [
     event_old_friend,
     event_zhang_butou,
     event_mountain_monastery,
+    event_ghost_village,
+    event_gambling_den,
+    event_escort_competition,
+    event_disguised_beggar,
 ]
 EVENT_POOL_LATE = [
     event_night_assassin,
@@ -757,6 +1120,9 @@ EVENT_POOL_LATE = [
     event_trapped_animal,
     event_sword_competition,
     event_wang_fu,
+    event_escort_competition,
+    event_river_crossing,
+    event_disguised_beggar,
 ]
 # 慧心只在境界入门以上出现
 EVENT_POOL_SPECIAL = [event_huixin_ni]
