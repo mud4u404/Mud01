@@ -41,7 +41,7 @@ ROUTES = {
         "reward": (80, 150),
         "time_labels": ["第一日·清晨", "第三日·正午", "第五日·傍晚"],
         "weathers":    ["晴",           "大风",         "阴"],
-        "mandatory_enemies": ["jianghu_baixia", "wudang_dizi", "lulinjun"],
+        "mandatory_enemies": ["jianghu_baixia", "lulinjun", "wudang_dizi"],
         "boss_enemy": "gufu_gaoshou",
         "req_reputation": 15,
     },
