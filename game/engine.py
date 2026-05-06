@@ -15,6 +15,7 @@ from data.events_data import get_route_events
 from data.factions import FACTIONS, faction_label, get_faction_bonus
 from data.guild import (GUILD_LEVELS, ESCORT_TEMPLATES,
                         get_available_escorts, rival_snatch_prob)
+from data.shop import SHOP_ITEMS, apply_item, apply_manual
 
 
 ROUTES = {
@@ -150,6 +151,7 @@ class GameEngine:
             "job_board":        self._on_job_board,
             "guild_hall":       self._on_guild_hall,
             "guild_hire":       self._on_guild_hire,
+            "shop":             self._on_shop,
             "event":            self._on_event_choice,
             "combat":           self._on_combat,
             "combat_target":    self._on_combat_target,
@@ -246,6 +248,14 @@ class GameEngine:
             "sub":  f"{escort_info}  · 公款{game_player.guild_funds}两",
             "type": "class",
         })
+        # 商店入口
+        inv_count = len([i for i in game_player.inventory if i in SHOP_ITEMS and SHOP_ITEMS[i]["type"] == "consumable"])
+        choices.append({
+            "id": "shop",
+            "text": "市集商店",
+            "sub":  f"买药/秘籍  当前银两：{game_player.silver}两",
+            "type": "class",
+        })
         choices.append({"id": "quit", "text": "离开游戏", "type": "danger"})
         self.choices = choices
 
@@ -259,6 +269,9 @@ class GameEngine:
             return
         if cid == "guild_hall":
             self._goto_guild_hall()
+            return
+        if cid == "shop":
+            self._goto_shop()
             return
         if cid not in ROUTES:
             return
@@ -776,10 +789,12 @@ class GameEngine:
             self.player.silver -= total_salary
             names = "、".join(e["name"] for e in self.player.escorts if e["hp"] > 0)
             self.push(f"发放镖师薪资：{names}  共 {total_salary} 两")
+        p = self.player
         self.push(
             "",
-            f"当前银两：{self.player.silver} 两",
-            f"声望：{self.player.reputation}（{self._rep_label(self.player.reputation)}）",
+            f"当前银两：{p.silver} 两",
+            f"声望：{p.reputation}（{self._rep_label(p.reputation)}）",
+            f"境界：{p.realm['name']}  ·  累计击败 {p.total_kills} 人",
         )
         self.choices = [{"id": "back", "text": "返回镖局", "type": "normal"}]
 
@@ -944,6 +959,77 @@ class GameEngine:
             else:
                 self.push("雇佣失败：银两不足或队伍已满。")
         self._goto_guild_hall()
+
+    # ── 商店 ─────────────────────────────────────────────────
+
+    def _goto_shop(self):
+        self.state = "shop"
+        p = self.player
+        self.divider("市集商店")
+        self.push("", f"掌柜笑脸相迎：'客官，货色都是真的，银两要带够哦。'",
+                  f"  当前银两：{p.silver} 两  · HP：{p.hp}/{p.max_hp}  内力：{p.energy}/{p.max_energy}", "")
+        choices = []
+        # 消耗品
+        for item in SHOP_ITEMS.values():
+            if item["type"] != "consumable":
+                continue
+            can_afford = p.silver >= item["cost"]
+            choices.append({
+                "id": f"buy_{item['id']}",
+                "text": f"{item['name']}  {item['cost']}两",
+                "sub":  item["desc"],
+                "type": "normal" if can_afford else "disabled",
+            })
+        # 秘籍
+        choices.append({"id": "__div__", "text": "── 武学秘籍 ──", "type": "disabled"})
+        for item in SHOP_ITEMS.values():
+            if item["type"] != "manual":
+                continue
+            already = item["id"] in p.inventory
+            can_afford = p.silver >= item["cost"]
+            rep_ok = p.reputation >= item.get("req_reputation", 0)
+            realm_ok = p.realm_idx >= item.get("req_realm", 0)
+            locked = already or not can_afford or not rep_ok or not realm_ok
+            sub_parts = [item["desc"]]
+            if already:
+                sub_parts.append("已习得")
+            else:
+                if not rep_ok:
+                    sub_parts.append(f"需声望{item['req_reputation']}")
+                if not realm_ok:
+                    from game.character import REALMS
+                    sub_parts.append(f"需境界{REALMS[item['req_realm']]['name']}")
+                if not can_afford:
+                    sub_parts.append(f"差{item['cost'] - p.silver}两")
+            choices.append({
+                "id": f"buy_{item['id']}",
+                "text": f"{item['name']}  {item['cost']}两",
+                "sub":  "  ".join(sub_parts),
+                "type": "disabled" if locked else "class",
+            })
+        choices.append({"id": "back", "text": "离开商店", "type": "normal"})
+        self.choices = choices
+
+    def _on_shop(self, cid, txt):
+        p = self.player
+        if cid == "back":
+            self._goto_job_board()
+            return
+        if cid.startswith("buy_"):
+            item_id = cid[4:]
+            item = SHOP_ITEMS.get(item_id)
+            if not item or p.silver < item["cost"]:
+                self.push("银两不足或物品不存在。")
+                self._goto_shop()
+                return
+            p.silver -= item["cost"]
+            if item["type"] == "consumable":
+                lines = apply_item(p, item_id)
+            else:
+                lines = apply_manual(p, item_id)
+            self.push(*lines)
+            self.push(f"剩余银两：{p.silver} 两")
+        self._goto_shop()
 
     # ── 工具 ─────────────────────────────────────────────────
 
