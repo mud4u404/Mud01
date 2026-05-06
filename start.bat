@@ -19,9 +19,9 @@ py -m pip install flask rich -q
 
 echo.
 echo 游戏启动中...
-echo 请在浏览器打开：http://localhost:5000
+echo 请在浏览器打开：http://localhost:8080
 echo 按 Ctrl+C 可停止服务器。
 echo.
-start "" http://localhost:5000
-py server.py
+start "" http://localhost:8080
+py server.py --port 8080
 pause

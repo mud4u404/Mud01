@@ -89,7 +89,14 @@ def load():
 
 
 if __name__ == "__main__":
+    import sys
     import socket
+
+    port = 5000
+    for i, arg in enumerate(sys.argv[1:]):
+        if arg == "--port" and i + 2 < len(sys.argv):
+            port = int(sys.argv[i + 2])
+
     hostname = socket.gethostname()
     try:
         local_ip = socket.gethostbyname(hostname)
@@ -97,7 +104,7 @@ if __name__ == "__main__":
         local_ip = "127.0.0.1"
 
     print(f"\n镖局 MUD 已启动")
-    print(f"本机访问：  http://127.0.0.1:5000")
-    print(f"手机访问：  http://{local_ip}:5000  （同一WiFi）\n")
+    print(f"本机访问：  http://127.0.0.1:{port}")
+    print(f"手机访问：  http://{local_ip}:{port}  （同一WiFi）\n")
 
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=port, debug=False)
