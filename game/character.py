@@ -111,6 +111,12 @@ class Player(Character):
         # 成就
         self.achievements: list[str] = []  # 已解锁成就ID列表
 
+        # 任务系统
+        self.active_quest: str | None = None       # 当前进行中任务ID
+        self.active_quest_stage: str = "start"     # 当前任务阶段
+        self.completed_quests: list[str] = []      # 已完成任务ID
+        self.quest_flags: dict = {}                # 任务相关标记/线索
+
         # 镖局经营
         self.guild_level = 0          # 0=无名, 1~4=草台~天下第一
         self.guild_funds = 0          # 镖局公款（独立于个人银两）
@@ -220,6 +226,10 @@ class Player(Character):
             "guild_funds": self.guild_funds,
             "escorts": self.escorts,
             "achievements": self.achievements,
+            "active_quest": self.active_quest,
+            "active_quest_stage": self.active_quest_stage,
+            "completed_quests": self.completed_quests,
+            "quest_flags": self.quest_flags,
         }
 
     @classmethod
@@ -239,6 +249,10 @@ class Player(Character):
         p.guild_funds = d.get("guild_funds", 0)
         p.escorts = d.get("escorts", [])
         p.achievements = d.get("achievements", [])
+        p.active_quest = d.get("active_quest")
+        p.active_quest_stage = d.get("active_quest_stage", "start")
+        p.completed_quests = d.get("completed_quests", [])
+        p.quest_flags = d.get("quest_flags", {})
         return p
 
     def change_faction(self, faction_id: str, delta: int):

@@ -18,6 +18,7 @@ from data.guild import (GUILD_LEVELS, ESCORT_TEMPLATES,
 from data.shop import SHOP_ITEMS, apply_item, apply_manual
 from data.achievements import check_and_unlock
 from data.main_story import check_story_triggers
+from data.quests import QUESTS, get_available_quests, get_quest_stage
 
 
 ROUTES = {
@@ -153,6 +154,10 @@ class GameEngine:
             "name_input":       self._on_name,
             "class_select":     self._on_class,
             "job_board":        self._on_job_board,
+            "tavern":           self._on_tavern,
+            "tavern_event":     self._on_tavern_event,
+            "quest_board":      self._on_quest_board,
+            "quest_active":     self._on_quest_active,
             "guild_hall":       self._on_guild_hall,
             "guild_hire":       self._on_guild_hire,
             "shop":             self._on_shop,
@@ -253,11 +258,26 @@ class GameEngine:
             "type": "class",
         })
         # 商店入口
-        inv_count = len([i for i in game_player.inventory if i in SHOP_ITEMS and SHOP_ITEMS[i]["type"] == "consumable"])
         choices.append({
             "id": "shop",
             "text": "市集商店",
             "sub":  f"买药/秘籍  当前银两：{game_player.silver}两",
+            "type": "class",
+        })
+        # 茶馆入口
+        choices.append({
+            "id": "tavern",
+            "text": "悦来茶馆",
+            "sub":  "休息·听消息·江湖奇遇",
+            "type": "class",
+        })
+        # 任务榜入口
+        quest_count = len(get_available_quests(p))
+        active_label = f"  【进行中】" if p.active_quest else ""
+        choices.append({
+            "id": "quest_board",
+            "text": f"任务榜{active_label}",
+            "sub":  f"当前可接 {quest_count} 个支线任务",
             "type": "class",
         })
         choices.append({"id": "quit", "text": "离开游戏", "type": "danger"})
@@ -266,6 +286,12 @@ class GameEngine:
     # ── 英雄榜 → 出发 ────────────────────────────────────────
 
     def _on_job_board(self, cid, txt):
+        if cid == "tavern":
+            self._goto_tavern()
+            return
+        if cid == "quest_board":
+            self._goto_quest_board()
+            return
         if cid == "quit":
             self.state = "quit"
             self.choices = []
@@ -322,6 +348,360 @@ class GameEngine:
         self._boss_done = False
         self._story_triggered_this_route = False
         self._next_travel_phase()
+
+    # ── 茶馆 ──────────────────────────────────────────────────
+
+    # 茶馆江湖消息池
+    _TAVERN_RUMORS = [
+        "一个老镖师压低声音说：'听说北边有个镖局，整批货无故消失，镖师全死了，死得蹊跷……'",
+        "角落里两个人在低声争论什么，只听见'名册'和'幕后'几个字。",
+        "茶博士擦着桌子，随口说：'最近城外流民越来越多，北边一定出事了。'",
+        "一个走镖老手叹道：'声望越高，麻烦越多，这江湖啊……'",
+        "有人说：'武当山最近频繁下山，说是奉命调查什么，具体什么不知道。'",
+        "一个商人喝着茶，抱怨道：'镖价越来越贵，也不知道路上到底出了什么事。'",
+        "茶馆掌柜悄声道：'前些日子有个黑衣人在这里坐了整整一天，盯着门口，怪瘆人的。'",
+        "有人说见过一个蒙面人在城外打探消息，问的全是镖局的事。",
+    ]
+
+    # 茶馆奇遇事件
+    _TAVERN_EVENTS = [
+        {
+            "name": "落魄高手",
+            "trigger_rep": 0,
+            "narrative": [
+                "茶馆角落坐着一个衣衫褴褛的老者，",
+                "面前一壶茶，喝了一整日，没人搭理他。",
+                "你的目光在他身上停了一停——",
+                "这人坐姿奇特，背脊笔直，呼吸极为绵长。",
+            ],
+            "choices": [
+                {
+                    "text": "上前搭话，买他一壶茶",
+                    "cost_silver": 2,
+                    "outcome": [
+                        "老者接过茶，看了你一眼，忽然笑了：",
+                        "'年轻人，你有慧眼。'",
+                        "他把茶喝完，起身要走，临走前捏了捏你的手腕，",
+                        "'你的内力走的路子不对，这样下去，上限就在这里了。'",
+                        "说完，人已经走远。",
+                        "你站在原地，若有所思——那一捏，你感觉到了什么，",
+                        "体内真气微微涌动。",
+                        "【经验+30，内力上限+10】",
+                    ],
+                    "reward": {"exp": 30, "energy": 10},
+                },
+                {
+                    "text": "不打扰他，各喝各的",
+                    "cost_silver": 0,
+                    "outcome": [
+                        "你移开目光，叫了壶茶，各喝各的。",
+                        "一个时辰后，你起身要走，",
+                        "那老者已经不知何时离开了，桌上只剩一个空茶杯。",
+                    ],
+                    "reward": {},
+                },
+            ],
+        },
+        {
+            "name": "赌徒的请求",
+            "trigger_rep": 0,
+            "narrative": [
+                "一个满脸焦虑的中年人凑到你身边，压低声音：",
+                "'兄弟，能借我十两银子吗？我欠了赌债，那帮人今天就要来收账，'",
+                "'我家里还有老母……'",
+            ],
+            "choices": [
+                {
+                    "text": "借给他（-10两）",
+                    "cost_silver": 10,
+                    "outcome": [
+                        "你掏出十两银子递给他。",
+                        "他千恩万谢，发誓三日内还清。",
+                        "你知道大概是要不回来的，",
+                        "但他那副如释重负的表情，让你说不出别的话。",
+                    ],
+                    "reward": {"rep": 3},
+                },
+                {
+                    "text": "拒绝，劝他去找官府",
+                    "cost_silver": 0,
+                    "outcome": [
+                        "你摇摇头：'这忙我帮不上。'",
+                        "他苦着脸走了。",
+                        "你喝完茶，起身离开，没有回头。",
+                    ],
+                    "reward": {},
+                },
+            ],
+        },
+    ]
+
+    def _goto_tavern(self):
+        self.state = "tavern"
+        p = self.player
+        self.divider("悦来茶馆")
+        self.push(
+            "",
+            "茶馆里烟雾缭绕，三教九流，无所不有。",
+            "小二殷勤地过来招呼。",
+            "",
+            f"【当前气血 {p.hp}/{p.max_hp}  · 银两 {p.silver} 两】",
+        )
+        choices = [
+            {
+                "id": "rest",
+                "text": f"歇脚休息  （-5两）",
+                "sub":  f"恢复全部气血，当前 {p.hp}/{p.max_hp}",
+                "type": "normal" if p.silver >= 5 else "disabled",
+            },
+            {
+                "id": "rumor",
+                "text": "听人说话",
+                "sub":  "打探江湖消息，说不定有线索",
+                "type": "normal",
+            },
+            {
+                "id": "encounter",
+                "text": "四处看看",
+                "sub":  "茶馆里什么人都有，或许能遇到奇事",
+                "type": "normal",
+            },
+            {
+                "id": "back",
+                "text": "离开茶馆",
+                "type": "normal",
+            },
+        ]
+        self.choices = choices
+
+    def _on_tavern(self, cid, txt):
+        p = self.player
+        if cid == "back":
+            self._goto_job_board()
+            return
+        if cid == "rest":
+            if p.silver < 5:
+                self.push("银两不足。")
+                self._goto_tavern()
+                return
+            p.silver -= 5
+            p.hp = p.max_hp
+            p.energy = p.max_energy
+            self.push(
+                "你叫了壶好茶，在角落里闭目调息。",
+                "馆子里人声嘈杂，却反而让你心静。",
+                "等你睁开眼，浑身气血已经恢复，比来时精神多了。",
+                f"【气血恢复满值 {p.max_hp}  · 内力恢复满值 {p.max_energy}】",
+            )
+            self._goto_tavern()
+            return
+        if cid == "rumor":
+            rumor = random.choice(self._TAVERN_RUMORS)
+            self.push("", "你找了个角落坐下，竖起耳朵听四周的动静。", "", rumor, "")
+            # 偶尔获得少量声望（情报有用）
+            if random.random() < 0.3:
+                p.reputation += 1
+                self.push("【在江湖消息中学到了一些东西，声望+1】")
+            self._goto_tavern()
+            return
+        if cid == "encounter":
+            # 随机触发一个茶馆奇遇
+            evt = random.choice(self._TAVERN_EVENTS)
+            self.push("", *evt["narrative"], "")
+            self.state = "tavern_event"
+            self._current_tavern_event = evt
+            self.choices = [
+                {"id": str(i), "text": c["text"], "type": "normal"}
+                for i, c in enumerate(evt["choices"])
+            ]
+            return
+
+    # 茶馆奇遇结算（复用 tavern 状态的 handler）
+    def _on_tavern_event(self, cid, txt):
+        p = self.player
+        evt = getattr(self, "_current_tavern_event", None)
+        if not evt:
+            self._goto_tavern()
+            return
+        idx = int(cid) if cid.isdigit() else 0
+        choice = evt["choices"][min(idx, len(evt["choices"]) - 1)]
+        cost = choice.get("cost_silver", 0)
+        if cost > 0 and p.silver < cost:
+            self.push("银两不足。")
+            self._goto_tavern()
+            return
+        p.silver -= cost
+        self.push(*choice["outcome"])
+        reward = choice.get("reward", {})
+        if reward.get("exp"):
+            broke_through, bt_lines = p.gain_exp(reward["exp"])
+            if broke_through:
+                self.push(*bt_lines)
+                self._pending_breakthrough = True
+        if reward.get("rep"):
+            p.reputation += reward["rep"]
+            self.push(f"【声望 +{reward['rep']}】")
+        if reward.get("energy"):
+            p.max_energy += reward["energy"]
+            p.energy = min(p.energy + reward["energy"], p.max_energy)
+            self.push(f"【内力上限 +{reward['energy']}】")
+        self._goto_tavern()
+
+    # ── 任务榜 ────────────────────────────────────────────────
+
+    def _goto_quest_board(self):
+        self.state = "quest_board"
+        p = self.player
+        self.divider("任务榜")
+        self.push("", "布告栏上贴着大大小小的悬赏和委托。", "")
+        if p.active_quest:
+            q = QUESTS.get(p.active_quest, {})
+            self.push(f"【进行中任务：{q.get('name', '未知')}】", "")
+        available = get_available_quests(p)
+        if not available:
+            self.push("当前没有适合你的任务。完成更多走镖、提升声望后再来看看。")
+        choices = []
+        if p.active_quest:
+            choices.append({
+                "id": "continue_quest",
+                "text": f"继续：{QUESTS[p.active_quest]['name']}",
+                "sub":  "查看当前任务进度",
+                "type": "mission",
+            })
+        for q in available:
+            if q["id"] == p.active_quest:
+                continue
+            reward_str = f"赏银{q['reward_silver']}两  声望+{q['reward_rep']}"
+            choices.append({
+                "id": f"accept_{q['id']}",
+                "text": q["name"],
+                "sub":  f"{q['desc']}  |  {reward_str}",
+                "type": "normal",
+            })
+        choices.append({"id": "back", "text": "离开", "type": "normal"})
+        self.choices = choices
+
+    def _on_quest_board(self, cid, txt):
+        p = self.player
+        if cid == "back":
+            self._goto_job_board()
+            return
+        if cid == "continue_quest" and p.active_quest:
+            self._start_quest_stage(p.active_quest, p.active_quest_stage)
+            return
+        if cid.startswith("accept_"):
+            qid = cid[7:]
+            if qid not in QUESTS:
+                self._goto_quest_board()
+                return
+            if p.active_quest and p.active_quest != qid:
+                self.push("你已有一个进行中的任务，请先完成它。")
+                self._goto_quest_board()
+                return
+            p.active_quest = qid
+            p.active_quest_stage = "start"
+            q = QUESTS[qid]
+            self.push(f"接下任务：【{q['name']}】", "", q["desc"], "")
+            self._start_quest_stage(qid, "start")
+
+    def _start_quest_stage(self, quest_id: str, stage_id: str):
+        stage = get_quest_stage(quest_id, stage_id)
+        if not stage:
+            self._complete_quest(quest_id)
+            return
+        self.state = "quest_active"
+        self._current_quest_stage = stage
+        if stage["narrative"]:
+            self.push(*stage["narrative"], "")
+        self.choices = [
+            {"id": str(i), "text": c["text"], "type": "normal"}
+            for i, c in enumerate(stage["choices"])
+        ]
+
+    def _on_quest_active(self, cid, txt):
+        p = self.player
+        stage = getattr(self, "_current_quest_stage", None)
+        if not stage:
+            self._goto_job_board()
+            return
+        idx = int(cid) if cid.isdigit() else 0
+        choices = stage["choices"]
+        if idx >= len(choices):
+            idx = 0
+        outcome = choices[idx]["outcome"]
+
+        # 输出文字
+        if outcome.get("lines"):
+            self.push(*outcome["lines"])
+
+        # 银两变动
+        silver = outcome.get("silver", 0)
+        if silver != 0:
+            p.silver = max(0, p.silver + silver)
+            if silver > 0:
+                self.push(f"【获得银两 +{silver} 两，当前 {p.silver} 两】")
+            elif silver < 0:
+                self.push(f"【花费 {abs(silver)} 两，当前 {p.silver} 两】")
+
+        # 声望变动
+        rep = outcome.get("rep", 0)
+        if rep != 0:
+            p.reputation = max(0, p.reputation + rep)
+            sign = "+" if rep > 0 else ""
+            self.push(f"【声望 {sign}{rep}，当前 {p.reputation}】")
+
+        # 经验
+        exp = outcome.get("exp", 0)
+        if exp > 0:
+            broke, bt = p.gain_exp(exp)
+            if broke:
+                self.push(*bt)
+                self._pending_breakthrough = True
+
+        # 任务标记
+        flag = outcome.get("flag")
+        if flag:
+            p.quest_flags[flag] = True
+
+        # 战斗触发
+        if outcome.get("combat"):
+            enemy_ids = outcome["combat"]
+            enemies = [Enemy(copy.deepcopy(ENEMY_TEMPLATES[eid])) for eid in enemy_ids]
+            next_stage = outcome.get("next_stage")
+            self._pending_quest_stage = (p.active_quest, next_stage)
+            self._after_combat = "quest_stage"
+            self._begin_combat(enemies, [])
+            return
+
+        # 进入下一阶段或完成
+        next_stage = outcome.get("next_stage")
+        if next_stage:
+            p.active_quest_stage = next_stage
+            self._start_quest_stage(p.active_quest, next_stage)
+        else:
+            self._complete_quest(p.active_quest)
+
+    def _complete_quest(self, quest_id: str):
+        p = self.player
+        q = QUESTS.get(quest_id, {})
+        p.silver += q.get("reward_silver", 0)
+        p.reputation += q.get("reward_rep", 0)
+        broke, bt = p.gain_exp(q.get("reward_exp", 0))
+        self.push(
+            "",
+            f"【任务完成：{q.get('name', '')}】",
+            f"赏银 +{q.get('reward_silver', 0)} 两  声望 +{q.get('reward_rep', 0)}",
+            f"当前银两：{p.silver} 两  声望：{p.reputation}",
+        )
+        if broke:
+            self.push(*bt)
+            self._pending_breakthrough = True
+        if not q.get("repeatable", False):
+            if quest_id not in p.completed_quests:
+                p.completed_quests.append(quest_id)
+        p.active_quest = None
+        p.active_quest_stage = "start"
+        self._goto_job_board()
 
     # ── 行程推进 ─────────────────────────────────────────────
 
@@ -843,8 +1223,22 @@ class GameEngine:
             self.push(f"稍作调息，恢复了 {heal} 点气血。（{self.player.hp}/{self.player.max_hp}）")
             if self._after_combat == "continue_travel":
                 self._next_travel_phase()
+            elif self._after_combat == "quest_stage":
+                qid, next_stage = getattr(self, "_pending_quest_stage", (None, None))
+                if qid and next_stage:
+                    self.player.active_quest_stage = next_stage
+                    self._start_quest_stage(qid, next_stage)
+                elif qid:
+                    self._complete_quest(qid)
+                else:
+                    self._goto_job_board()
         else:
-            self._mission_fail()
+            if self._after_combat == "quest_stage":
+                self.player.hp = max(1, 30)
+                self.push("", "你落败受伤，任务暂时受阻，先回镖局歇息。")
+                self._goto_job_board()
+            else:
+                self._mission_fail()
 
     # ── 任务结算 ─────────────────────────────────────────────
 
