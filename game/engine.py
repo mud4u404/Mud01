@@ -16,6 +16,7 @@ from data.factions import FACTIONS, faction_label, get_faction_bonus
 from data.guild import (GUILD_LEVELS, ESCORT_TEMPLATES,
                         get_available_escorts, rival_snatch_prob)
 from data.shop import SHOP_ITEMS, apply_item, apply_manual
+from data.achievements import check_and_unlock
 
 
 ROUTES = {
@@ -86,6 +87,7 @@ class GameEngine:
         self.pending_combat: list[dict] = []
         self._pending_breakthrough = False
         self._target_idx: int = 0   # 当前选中的攻击目标
+        self._current_weather: str = "晴"   # 当前战斗天气
 
     # ── 输出工具 ─────────────────────────────────────────────
 
@@ -340,6 +342,7 @@ class GameEngine:
         r = getattr(self, "_current_route", ROUTE)
         label = r["time_labels"][min(idx, len(r["time_labels"]) - 1)]
         weather = r["weathers"][min(idx, len(r["weathers"]) - 1)]
+        self._current_weather = weather
         self._current_event = event
         self.divider(f"{label} · {weather}")
         for ln in event["narrative"]:
@@ -509,6 +512,33 @@ class GameEngine:
 
     # ── 战斗系统 ─────────────────────────────────────────────
 
+    # 天气对战斗的影响
+    _WEATHER_EFFECTS = {
+        "晴":   {"desc": None,            "player_spd": 0,  "enemy_spd": 0,  "visibility": 1.0},
+        "阴":   {"desc": None,            "player_spd": 0,  "enemy_spd": 0,  "visibility": 0.9},
+        "雨":   {"desc": "大雨影响视野，双方命中-10%", "player_spd": -1, "enemy_spd": -1, "visibility": 0.9},
+        "暴雨": {"desc": "暴雨滂沱，速度大幅下降，但高速招式威力不减", "player_spd": -2, "enemy_spd": -2, "visibility": 0.85},
+        "大风": {"desc": "狂风助势，暗器手速度+2，但远程精度下降", "player_spd": 1,  "enemy_spd": 0,  "visibility": 0.9},
+        "雾":   {"desc": "浓雾遮天，双方速度-1，偷袭成功率大增", "player_spd": -1, "enemy_spd": 0,  "visibility": 0.8},
+        "深夜": {"desc": "夜战视野受限，双方命中均下降",   "player_spd": 0,  "enemy_spd": -1, "visibility": 0.8},
+    }
+
+    def _apply_weather_to_combat(self):
+        """将天气效果应用到本次战斗（临时修改speed）"""
+        w = self._current_weather
+        eff = self._WEATHER_EFFECTS.get(w, self._WEATHER_EFFECTS["晴"])
+        if eff["desc"]:
+            self.push(f"【天气影响：{eff['desc']}】")
+        if eff["player_spd"] != 0:
+            self.player.speed = max(1, self.player.speed + eff["player_spd"])
+        if eff["enemy_spd"] != 0:
+            for e in self.combat_enemies:
+                e.speed = max(1, e.speed + eff["enemy_spd"])
+        # 雾/深夜：敌人有额外偷袭先手
+        if w in ("雾", "深夜"):
+            for e in self.combat_enemies:
+                e.action_gauge += 30
+
     def _begin_combat(self, enemies: list[Enemy], context: list[str]):
         for ln in context:
             self.push(ln)
@@ -517,6 +547,7 @@ class GameEngine:
         self.player.action_gauge = 0
         for e in enemies:
             e.action_gauge = random.randint(0, 40)
+        self._apply_weather_to_combat()
         self.state = "combat"
         self._build_combat_choices()
 
@@ -570,7 +601,11 @@ class GameEngine:
         # 逃跑：损失声望，只在非Boss战允许
         is_boss = len(alive) == 1 and alive[0].level >= 7
         if not is_boss:
-            choices.append({"id": "flee", "text": "撤退脱身", "sub": "声望-5，结束此次走镖", "type": "danger"})
+            w = getattr(self, "_current_weather", "晴")
+            flee_penalty = 8 if w in ("暴雨", "雾", "深夜") else 5
+            choices.append({"id": "flee", "text": "撤退脱身",
+                            "sub": f"声望-{flee_penalty}，结束此次走镖  [{w}逃跑更难]" if flee_penalty > 5 else "声望-5，结束此次走镖",
+                            "type": "danger"})
 
         # 目标选择按钮（多敌人时显示）
         if len(alive) > 1:
@@ -599,8 +634,10 @@ class GameEngine:
 
         # 逃跑
         if cid == "flee":
-            p.reputation = max(0, p.reputation - 5)
-            self.push("", "你力战不敌，拼命脱身而去。", "【声望 -5】")
+            w = getattr(self, "_current_weather", "晴")
+            flee_penalty = 8 if w in ("暴雨", "雾", "深夜") else 5
+            p.reputation = max(0, p.reputation - flee_penalty)
+            self.push("", "你力战不敌，拼命脱身而去。", f"【声望 -{flee_penalty}】")
             self._mission_fail()
             return
 
@@ -769,7 +806,11 @@ class GameEngine:
                 for ln in bt_lines:
                     self.push(ln)
                 self._pending_breakthrough = True
+                for ln in check_and_unlock(p, "realm"):
+                    self.push(ln)
             p.total_kills += 1
+            for ln in check_and_unlock(p, "kill", {"name": de.name}):
+                self.push(ln)
             de.defeat_text = []
 
         # 检查战斗是否结束
@@ -816,12 +857,21 @@ class GameEngine:
             names = "、".join(e["name"] for e in self.player.escorts if e["hp"] > 0)
             self.push(f"发放镖师薪资：{names}  共 {total_salary} 两")
         p = self.player
+        # 成就检查
+        total_missions = getattr(self, "_total_missions", 0) + 1
+        self._total_missions = total_missions
+        ach_lines = check_and_unlock(p, "mission_complete", {"total_missions": total_missions})
+        ach_lines += check_and_unlock(p, "reputation")
+        for ln in ach_lines:
+            self.push(ln)
         self.push(
             "",
             f"当前银两：{p.silver} 两",
             f"声望：{p.reputation}（{self._rep_label(p.reputation)}）",
             f"境界：{p.realm['name']}  ·  累计击败 {p.total_kills} 人",
         )
+        if p.achievements:
+            self.push(f"成就：{len(p.achievements)} 个已解锁")
         self.choices = [{"id": "back", "text": "返回镖局", "type": "normal"}]
 
     def _mission_fail(self):
@@ -900,6 +950,8 @@ class GameEngine:
                 new = GUILD_LEVELS[p.guild_level]
                 self.push("", f"【镖局升级】恭喜！你的镖局已升级为「{new['name']}」！",
                           f"银两 -{nxt['upgrade_cost']}，现可雇{new['max_escorts']}名镖师。")
+                for ln in check_and_unlock(p, "guild_upgrade"):
+                    self.push(ln)
             else:
                 self.push("银两或声望不足，无法升级。")
             self._goto_guild_hall()
@@ -982,6 +1034,8 @@ class GameEngine:
                 }
                 p.escorts.append(escort)
                 self.push(f"", f"【雇佣成功】{tmpl['name']} 加入你的队伍！", f"银两 -{tmpl['hire_cost']}。")
+                for ln in check_and_unlock(p, "hire"):
+                    self.push(ln)
             else:
                 self.push("雇佣失败：银两不足或队伍已满。")
         self._goto_guild_hall()

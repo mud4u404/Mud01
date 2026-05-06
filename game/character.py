@@ -108,6 +108,9 @@ class Player(Character):
         self.ma_exp = 0             # 当前境界经验
         self.total_kills = 0        # 累计击败敌人数
 
+        # 成就
+        self.achievements: list[str] = []  # 已解锁成就ID列表
+
         # 镖局经营
         self.guild_level = 0          # 0=无名, 1~4=草台~天下第一
         self.guild_funds = 0          # 镖局公款（独立于个人银两）
@@ -216,6 +219,7 @@ class Player(Character):
             "guild_level": self.guild_level,
             "guild_funds": self.guild_funds,
             "escorts": self.escorts,
+            "achievements": self.achievements,
         }
 
     @classmethod
@@ -234,6 +238,7 @@ class Player(Character):
         p.guild_level = d.get("guild_level", 0)
         p.guild_funds = d.get("guild_funds", 0)
         p.escorts = d.get("escorts", [])
+        p.achievements = d.get("achievements", [])
         return p
 
     def change_faction(self, faction_id: str, delta: int):
