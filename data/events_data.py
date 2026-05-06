@@ -1,6 +1,7 @@
 # 江湖事件库
 
 import random
+from data.npcs import event_wang_fu, event_zhang_butou, event_huixin_ni
 
 # 每个事件结构：
 # id, title, location_desc, narrative, choices
@@ -736,6 +737,8 @@ EVENT_POOL_EARLY = [
     event_lost_child,
     event_old_friend,
     event_mountain_monastery,
+    event_wang_fu,
+    event_zhang_butou,
 ]
 EVENT_POOL_MID = [
     event_rival_escort,
@@ -744,6 +747,8 @@ EVENT_POOL_MID = [
     event_trapped_animal,
     event_sword_competition,
     event_old_friend,
+    event_zhang_butou,
+    event_mountain_monastery,
 ]
 EVENT_POOL_LATE = [
     event_night_assassin,
@@ -751,12 +756,21 @@ EVENT_POOL_LATE = [
     event_dying_master,
     event_trapped_animal,
     event_sword_competition,
+    event_wang_fu,
 ]
+# 慧心只在境界入门以上出现
+EVENT_POOL_SPECIAL = [event_huixin_ni]
 
 
 def get_route_events(game, difficulty="normal"):
     """为一次走镖随机生成事件序列"""
     early = random.choice(EVENT_POOL_EARLY)(game)
     mid   = random.choice(EVENT_POOL_MID)(game)
-    late  = random.choice(EVENT_POOL_LATE)(game)
+
+    # 境界 >= 入门（idx>=1）时有机会触发特殊事件
+    if game.player.realm_idx >= 1 and random.random() < 0.4:
+        late = random.choice(EVENT_POOL_SPECIAL)(game)
+    else:
+        late = random.choice(EVENT_POOL_LATE)(game)
+
     return [early, mid, late]

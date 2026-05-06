@@ -108,6 +108,16 @@ class Player(Character):
         self.ma_exp = 0             # 当前境界经验
         self.total_kills = 0        # 累计击败敌人数
 
+        # 江湖三方势力声望 -100 ~ 100
+        self.faction_rep = {
+            "imperial":   0,   # 朝廷
+            "orthodox":   0,   # 武林正道
+            "underworld": 0,   # 江湖黑道
+        }
+
+        # 常驻NPC记忆 {npc_id: {meet_count, attitude, flags...}}
+        self.npc_memory: dict = {}
+
     # ── 境界相关 ──────────────────────────────────────────────
 
     @property
@@ -196,6 +206,8 @@ class Player(Character):
             "total_kills": self.total_kills,
             "martial_insight": self.martial_insight,
             "inventory": self.inventory,
+            "faction_rep": self.faction_rep,
+            "npc_memory": self.npc_memory,
         }
 
     @classmethod
@@ -209,7 +221,14 @@ class Player(Character):
         p.total_kills = d.get("total_kills", 0)
         p.martial_insight = d.get("martial_insight", 0)
         p.inventory = d.get("inventory", [])
+        p.faction_rep = d.get("faction_rep", {"imperial": 0, "orthodox": 0, "underworld": 0})
+        p.npc_memory = d.get("npc_memory", {})
         return p
+
+    def change_faction(self, faction_id: str, delta: int):
+        """修改势力声望，自动钳制在 -100~100"""
+        self.faction_rep[faction_id] = max(-100, min(100,
+            self.faction_rep.get(faction_id, 0) + delta))
 
 
 class Enemy(Character):

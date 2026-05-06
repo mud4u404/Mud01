@@ -36,7 +36,7 @@
     #status-bar {
       flex-shrink: 0; background: var(--bg2);
       border-bottom: 1px solid var(--border);
-      padding: 6px 12px; display: flex; gap: 10px;
+      padding: 5px 12px; display: flex; gap: 8px;
       font-size: 11px; color: var(--dim); align-items: center; flex-wrap: wrap;
     }
     .s-val { font-weight: 600; }
@@ -45,11 +45,39 @@
     .s-realm  { color: var(--purple); }
     .s-exp    { color: var(--dim); font-size: 10px; }
     #st-realm-bar {
-      flex: 1; min-width: 60px; background: #1a1a14;
+      width: 50px; background: #1a1a14;
       border-radius: 2px; height: 4px; overflow: hidden;
     }
     #st-realm-fill { height: 100%; background: var(--purple); transition: width .5s; border-radius: 2px; }
     .logo { margin-left: auto; color: var(--gold); font-size: 14px; letter-spacing: 2px; opacity: .7; }
+
+    /* 势力抽屉 */
+    #faction-toggle {
+      flex-shrink: 0; background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 4px 12px; cursor: pointer;
+      font-size: 11px; color: var(--dim); display: flex; gap: 16px; align-items: center;
+    }
+    #faction-toggle:active { background: var(--bg3); }
+    .faction-item { display: flex; align-items: center; gap: 4px; }
+    .faction-bar {
+      width: 40px; height: 3px; background: #1a1a14;
+      border-radius: 2px; overflow: hidden; position: relative;
+    }
+    .faction-fill-pos { position: absolute; left: 50%; top: 0; height: 100%; background: var(--green); border-radius: 2px; }
+    .faction-fill-neg { position: absolute; right: 50%; top: 0; height: 100%; background: var(--red); border-radius: 2px; }
+    #faction-detail {
+      display: none; background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 12px; font-size: 12px;
+    }
+    #faction-detail.open { display: block; }
+    .fd-row { display: flex; justify-content: space-between; margin-bottom: 5px; align-items: center; }
+    .fd-name { color: var(--gold); width: 70px; }
+    .fd-rep  { color: var(--dim); font-size: 11px; width: 40px; text-align: right; }
+    .fd-bar  { flex: 1; height: 5px; background: #1a1a14; border-radius: 3px; overflow: hidden; margin: 0 8px; position: relative; }
+    .fd-fill-p { position: absolute; left: 50%; top: 0; height: 100%; background: var(--green); border-radius: 3px; }
+    .fd-fill-n { position: absolute; right: 50%; top: 0; height: 100%; background: var(--red); border-radius: 3px; }
 
     /* ── 主文字区 ── */
     #scroll-area {
@@ -222,6 +250,58 @@
     <span class="logo">镖</span>
   </div>
 
+  <!-- 势力声望折叠栏 -->
+  <div id="faction-toggle" onclick="toggleFaction()">
+    <span style="color:var(--dim);font-size:10px;flex-shrink:0">势力▾</span>
+    <div class="faction-item">
+      <span>朝廷</span>
+      <div class="faction-bar">
+        <div class="faction-fill-pos" id="ft-imperial-p" style="width:0%"></div>
+        <div class="faction-fill-neg" id="ft-imperial-n" style="width:0%"></div>
+      </div>
+    </div>
+    <div class="faction-item">
+      <span>正道</span>
+      <div class="faction-bar">
+        <div class="faction-fill-pos" id="ft-orthodox-p" style="width:0%"></div>
+        <div class="faction-fill-neg" id="ft-orthodox-n" style="width:0%"></div>
+      </div>
+    </div>
+    <div class="faction-item">
+      <span>黑道</span>
+      <div class="faction-bar">
+        <div class="faction-fill-pos" id="ft-underworld-p" style="width:0%"></div>
+        <div class="faction-fill-neg" id="ft-underworld-n" style="width:0%"></div>
+      </div>
+    </div>
+  </div>
+  <div id="faction-detail">
+    <div class="fd-row">
+      <span class="fd-name">朝廷</span>
+      <div class="fd-bar">
+        <div class="fd-fill-p" id="fd-imperial-p" style="width:0%"></div>
+        <div class="fd-fill-n" id="fd-imperial-n" style="width:0%"></div>
+      </div>
+      <span class="fd-rep" id="fd-imperial-v">0</span>
+    </div>
+    <div class="fd-row">
+      <span class="fd-name">武林正道</span>
+      <div class="fd-bar">
+        <div class="fd-fill-p" id="fd-orthodox-p" style="width:0%"></div>
+        <div class="fd-fill-n" id="fd-orthodox-n" style="width:0%"></div>
+      </div>
+      <span class="fd-rep" id="fd-orthodox-v">0</span>
+    </div>
+    <div class="fd-row">
+      <span class="fd-name">江湖黑道</span>
+      <div class="fd-bar">
+        <div class="fd-fill-p" id="fd-underworld-p" style="width:0%"></div>
+        <div class="fd-fill-n" id="fd-underworld-n" style="width:0%"></div>
+      </div>
+      <span class="fd-rep" id="fd-underworld-v">0</span>
+    </div>
+  </div>
+
   <!-- 主文字区 -->
   <div id="scroll-area"></div>
 
@@ -346,6 +426,9 @@ function render(data) {
       document.getElementById('st-realm-fill').style.width = pct + '%';
     }
 
+    // 势力声望
+    if (p.faction_rep) renderFaction(p.faction_rep);
+
     // 突破动画
     if (data.breakthrough && p.realm !== currentRealm) {
       currentRealm = p.realm;
@@ -435,6 +518,27 @@ function renderChoices(choices) {
     btn.onclick = () => sendChoice(c.id);
     area.appendChild(btn);
   });
+}
+
+// ── 势力声望 ─────────────────────────────────────────────────
+function renderFaction(fr) {
+  const factions = ['imperial', 'orthodox', 'underworld'];
+  factions.forEach(f => {
+    const rep = fr[f] || 0;
+    const pct = Math.abs(rep) / 100 * 50;
+    // 紧凑条
+    document.getElementById(`ft-${f}-p`).style.width = rep > 0 ? pct + '%' : '0%';
+    document.getElementById(`ft-${f}-n`).style.width = rep < 0 ? pct + '%' : '0%';
+    // 展开详情
+    document.getElementById(`fd-${f}-p`).style.width = rep > 0 ? pct + '%' : '0%';
+    document.getElementById(`fd-${f}-n`).style.width = rep < 0 ? pct + '%' : '0%';
+    document.getElementById(`fd-${f}-v`).textContent = (rep >= 0 ? '+' : '') + rep;
+    document.getElementById(`fd-${f}-v`).style.color = rep > 0 ? 'var(--green)' : rep < 0 ? 'var(--red)' : 'var(--dim)';
+  });
+}
+
+function toggleFaction() {
+  document.getElementById('faction-detail').classList.toggle('open');
 }
 
 // ── 突破动画 ─────────────────────────────────────────────────

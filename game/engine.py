@@ -12,6 +12,7 @@ from game.combat import resolve_attack
 from data.martial_arts import MARTIAL_ARTS
 from data.enemies import ENEMY_TEMPLATES
 from data.events_data import get_route_events
+from data.factions import FACTIONS, faction_label, get_faction_bonus
 
 
 ROUTES = {
@@ -81,6 +82,7 @@ class GameEngine:
         # 额外 pending_combat（由事件注入）
         self.pending_combat: list[dict] = []
         self._pending_breakthrough = False
+        self._target_idx: int = 0   # 当前选中的攻击目标
 
     # ── 输出工具 ─────────────────────────────────────────────
 
@@ -108,6 +110,7 @@ class GameEngine:
             "realm": p.realm["name"],
             "realm_idx": p.realm_idx,
             "exp_progress": p.exp_progress_str(),
+            "faction_rep": p.faction_rep,
         } if p else None
 
         enemies_data = [
@@ -314,17 +317,85 @@ class GameEngine:
         else:
             self._next_travel_phase()
 
-    # ── 必经战斗：松岭山口 ───────────────────────────────────
+    # ── 必经战斗（路线专属）─────────────────────────────────────
+
+    # 各路线必经战场景文字
+    _MANDATORY_SCENES = {
+        "datong_taiyuan": {
+            "divider": "松岭山口 · 第三日·申时 · 阴",
+            "narrative": [
+                "松岭山口，两侧山石嶙峋，官道收窄。",
+                "前方树影一动，七八个黑影现身，刀光闪闪。",
+                "", "为首的络腮胡大汉横刀立马：",
+                "'把镖车留下，人可以走。'",
+            ],
+            "bluff_rep": 20,
+        },
+        "taiyuan_luoyang": {
+            "divider": "函谷古道 · 第四日·正午 · 大风",
+            "narrative": [
+                "函谷古道，千年雄关锁咽喉。",
+                "风声中，十余条人影从两侧山壁上跃下，",
+                "各个身手矫健，显然是有武功底子的江湖人。",
+                "", "领头的是个儒衫打扮的中年人，",
+                "拱手道：'在下奉命，得罪了。'",
+            ],
+            "bluff_rep": 35,
+        },
+        "luoyang_jinling": {
+            "divider": "淮河渡口 · 第六日·深夜 · 暴雨",
+            "narrative": [
+                "夜渡淮河，大雨滂沱，四周漆黑。",
+                "渡船抵岸的瞬间，两侧芦苇丛中同时亮起火把——",
+                "黑衣人足有二十余，将渡口团团围住。",
+                "", "一个阴沉的声音从暗处传来：",
+                "'货留下，人……就看你们识不识趣了。'",
+            ],
+            "bluff_rep": 60,
+        },
+    }
+
+    _BOSS_SCENES = {
+        "datong_taiyuan": {
+            "divider": "太原城门外 · 第三日·酉时 · 雾",
+            "narrative": [
+                "太原城在望，夕阳如血。",
+                "突然，一道黑影从雾中闪出，快如鬼魅，直取你咽喉。",
+                "", "黑衣人停在三步外，面罩之后，一双冷眼：",
+                "'你护的那批货……交出来。'",
+            ],
+        },
+        "taiyuan_luoyang": {
+            "divider": "洛阳城外十里亭 · 第五日·傍晚 · 晴",
+            "narrative": [
+                "洛阳近在眼前，你却感到一股如芒刺背的目光。",
+                "十里亭旁，一个孤傲的身影负手而立。",
+                "他不急不缓，只说了一句：",
+                "'这趟镖，你不该接的。'",
+            ],
+        },
+        "luoyang_jinling": {
+            "divider": "秦淮河畔 · 第七日·黎明 · 雾",
+            "narrative": [
+                "晨雾中，金陵城廓若隐若现。",
+                "就在你松一口气的时候，",
+                "一柄剑无声无息地架在了你的脖子上——",
+                "身后不知何时站了个人。",
+                "'东西，给我。'",
+            ],
+        },
+    }
 
     def _start_mandatory_fight(self):
-        self.divider("松岭山口 · 第三日·申时 · 阴")
-        self.push(
-            "松岭山口，两侧山石嶙峋，官道收窄。",
-            "前方树影一动，七八个黑影现身，刀光闪闪。",
-            "",
-            "为首的络腮胡大汉横刀立马：",
-            "'把镖车留下，人可以走。'",
-        )
+        rid = getattr(self, "_current_route", ROUTE).get("id", "datong_taiyuan")
+        scene = self._MANDATORY_SCENES.get(rid, self._MANDATORY_SCENES["datong_taiyuan"])
+        route = getattr(self, "_current_route", ROUTE)
+
+        self.divider(scene["divider"])
+        for ln in scene["narrative"]:
+            self.push(ln)
+
+        bluff_rep = scene["bluff_rep"]
         self.state = "event"
         self._current_event = {
             "narrative": [],
@@ -335,8 +406,8 @@ class GameEngine:
                     "outcome": lambda g: self._mandatory_fight_outcome(),
                 },
                 {
-                    "text": f"亮出名号震慑（需声望≥20）",
-                    "condition": lambda g: g.player.reputation >= 20,
+                    "text": f"亮出名号震慑（需声望≥{bluff_rep}）",
+                    "condition": lambda g: g.player.reputation >= bluff_rep,
                     "outcome": lambda g: self._mandatory_bluff_outcome(),
                 },
             ],
@@ -348,39 +419,35 @@ class GameEngine:
         ]
 
     def _mandatory_fight_outcome(self):
-        enemies = [
-            Enemy(copy.deepcopy(ENEMY_TEMPLATES["maozei_toumu"])),
-            Enemy(copy.deepcopy(ENEMY_TEMPLATES["maozei_xiaodi"])),
-            Enemy(copy.deepcopy(ENEMY_TEMPLATES["maozei_xiaodi"])),
-        ]
+        route = getattr(self, "_current_route", ROUTE)
+        enemy_ids = route.get("mandatory_enemies",
+                              ["maozei_toumu", "maozei_xiaodi", "maozei_xiaodi"])
+        enemies = [Enemy(copy.deepcopy(ENEMY_TEMPLATES[eid])) for eid in enemy_ids]
         self._after_combat = "continue_travel"
         self._begin_combat(enemies, ["你握紧兵器，沉声道：'来吧。'"])
         return []
 
     def _mandatory_bluff_outcome(self):
-        self.player.reputation += 3
+        self.player.reputation += 5
         return [
             "你缓缓亮出腰牌，报出名号——",
-            "络腮胡眯眼看了看，脸色变了，",
-            "'罢了，今日就给你个面子，走吧。'",
-            "一挥手，镖队让开了道。",
-            "【声望 +3】",
+            "对方打量你片刻，脸色变了，",
+            "'今日算你走运，让道。'",
+            "一挥手，人群散开。",
+            "【声望 +5】",
         ]
 
-    # ── Boss：蒙面杀手 ───────────────────────────────────────
+    # ── Boss（路线专属）─────────────────────────────────────────
 
     def _start_boss_fight(self):
-        self.divider("太原城门外 · 第三日·酉时 · 雾")
-        enemies = [Enemy(copy.deepcopy(ENEMY_TEMPLATES["mianren_shashi"]))]
-        self._begin_combat(enemies, [
-            "太原城在望，夕阳如血。",
-            "你长出一口气——",
-            "突然，一道黑影从雾中闪出，快如鬼魅，直取你咽喉。",
-            "",
-            "你本能地闪身，刀锋划破衣袖。",
-            "黑衣人停在三步外，面罩之后，一双冷眼盯着你：",
-            "'你护的那批货……交出来。'",
-        ])
+        rid = getattr(self, "_current_route", ROUTE).get("id", "datong_taiyuan")
+        scene = self._BOSS_SCENES.get(rid, self._BOSS_SCENES["datong_taiyuan"])
+        route = getattr(self, "_current_route", ROUTE)
+        boss_id = route.get("boss_enemy", "mianren_shashi")
+
+        self.divider(scene["divider"])
+        enemies = [Enemy(copy.deepcopy(ENEMY_TEMPLATES[boss_id]))]
+        self._begin_combat(enemies, scene["narrative"])
         self._after_combat = "continue_travel"
 
     # ── 战斗系统 ─────────────────────────────────────────────
@@ -399,30 +466,71 @@ class GameEngine:
     def _build_combat_choices(self):
         if not self.player:
             return
-        techs = self.player.get_techniques()
+        p = self.player
+        techs = p.get_techniques()
+        alive = [e for e in self.combat_enemies if e.alive]
+        TAG_MAP = {
+            "multi_hit": "连击", "poison": "毒", "bleed": "流血",
+            "aoe": "群体", "defend": "护体", "counter": "反制",
+            "wait_counter": "借力", "first_strike": "先手", "evade": "闪避",
+        }
         choices = []
+
+        # 若有多个目标，先选目标（state=combat_target）
+        # 这里先让玩家选招式，目标由 target_idx 维护
         for i, t in enumerate(techs):
-            can = self.player.can_use_technique(t)
-            special = t.get("special")
+            can = p.can_use_technique(t)
             tag = ""
-            if special:
-                tag_map = {
-                    "multi_hit": "三连", "poison": "毒", "bleed": "流血",
-                    "aoe": "群体", "defend": "护体", "counter": "反制",
-                    "wait_counter": "借力", "first_strike": "先手", "evade": "闪避",
-                }
-                tag = f"【{tag_map.get(special['type'], '')}】"
+            if t.get("special"):
+                tag = f"【{TAG_MAP.get(t['special']['type'], '')}】"
+            dmg_preview = int(p.effective_attack() * t["damage_mult"] * p.realm["atk_mult"]) if t["damage_mult"] else 0
+            dmg_str = f"预估伤害≈{dmg_preview}" if dmg_preview else "防御/辅助"
             choices.append({
                 "id": f"tech_{i}",
                 "text": f"{t['name']}{tag}",
-                "sub":  f"内力 {t['energy_cost']} · 速度 {t['speed']}",
+                "sub":  f"{dmg_str}  内力{t['energy_cost']} 速度{t['speed']}",
                 "type": "combat" if can else "disabled",
             })
-        choices.append({"id": "recover", "text": "调息蓄气", "sub": "恢复内力+20", "type": "normal"})
+
+        choices.append({"id": "recover", "text": "调息蓄气", "sub": "恢复内力 +20", "type": "normal"})
+
+        # 逃跑：损失声望，只在非Boss战允许
+        is_boss = len(alive) == 1 and alive[0].level >= 7
+        if not is_boss:
+            choices.append({"id": "flee", "text": "撤退脱身", "sub": "声望-5，结束此次走镖", "type": "danger"})
+
+        # 目标选择按钮（多敌人时显示）
+        if len(alive) > 1:
+            choices.append({"id": "__target_header__", "text": "── 选择攻击目标 ──", "type": "disabled"})
+            for ti, e in enumerate(alive):
+                pct = int(e.hp / e.max_hp * 100)
+                choices.append({
+                    "id": f"target_{ti}",
+                    "text": f"  {e.name}",
+                    "sub":  f"HP {e.hp}/{e.max_hp} ({pct}%)  {e.school}",
+                    "type": "normal" if ti == self._target_idx else "disabled",
+                })
         self.choices = choices
 
     def _on_combat(self, cid, txt):
         p = self.player
+
+        # 切换目标
+        if cid.startswith("target_"):
+            alive = [e for e in self.combat_enemies if e.alive]
+            ti = int(cid.split("_")[1])
+            if 0 <= ti < len(alive):
+                self._target_idx = ti
+            self._build_combat_choices()
+            return
+
+        # 逃跑
+        if cid == "flee":
+            p.reputation = max(0, p.reputation - 5)
+            self.push("", "你力战不敌，拼命脱身而去。", "【声望 -5】")
+            self._mission_fail()
+            return
+
         self._combat_round += 1
         self.divider(f"第 {self._combat_round} 回合")
 
@@ -473,11 +581,12 @@ class GameEngine:
 
         for actor_type, actor, tech, spd in all_actions:
             if actor_type == "player":
-                # 选择目标
+                # 根据玩家选择的目标
                 living = [e for e in alive if e.alive]
                 if not living:
                     break
-                target = living[0]  # 默认第一个（多目标选择下期加）
+                self._target_idx = min(self._target_idx, len(living) - 1)
+                target = living[self._target_idx]
 
                 # 特殊：护体/闪避
                 if tech.get("special") and tech["special"]["type"] in ("defend", "evade"):
